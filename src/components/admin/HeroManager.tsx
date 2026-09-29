@@ -186,7 +186,7 @@ export default function HeroManager({ initial }: { initial: HeroImage[] }) {
 
       {rows.length === 0 ? (
         <div className="rounded-xl border border-dashed border-stone-300 bg-white p-12 text-center text-sm text-stone-500">
-          No hero images yet. Upload up to {HERO_IMAGE_LIMIT} JPG, PNG or WebP images (max 8 MB each).
+          No hero images yet. Upload up to {HERO_IMAGE_LIMIT} JPG, PNG or WebP images.
         </div>
       ) : (
         <ol className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -220,7 +220,7 @@ export default function HeroManager({ initial }: { initial: HeroImage[] }) {
       )}
 
       <p className="text-xs text-stone-500">
-        JPG, PNG or WebP, up to 8 MB. Images are resized and compressed automatically.
+        JPG, PNG or WebP. Large photos are resized and compressed automatically.
         Landscape and portrait both work — the gallery crops to fit.
       </p>
     </div>

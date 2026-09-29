@@ -116,14 +116,14 @@ export const signupInputSchema = z.object({
     .trim()
     .toLowerCase()
     .min(3, "Username must be at least 3 characters.")
-    .max(32, "Username can be at most 32 characters.")
+    .max(64, "Username can be at most 64 characters.")
     .regex(
-      /^[a-z0-9._-]+$/,
-      "Use lowercase letters, numbers, dots, dashes or underscores."
+      /^[a-z0-9._@-]+$/,
+      "Use letters, numbers, dots, dashes, underscores or @ (no spaces)."
     ),
   password: z
     .string()
-    .min(10, "Password must be at least 10 characters.")
+    .min(8, "Password must be at least 8 characters.")
     .max(200, "Password is too long."),
 });
 
@@ -144,10 +144,12 @@ export type ContentDatabase = {
   heroImages: HeroImage[];
   menuItems: MenuItem[];
   adminUsers?: AdminUser[];
+  /** Session signing key, used when AUTH_SECRET isn't set. */
+  authSecret?: string;
 };
 
-/** Everything the site renders; admin accounts are never included. */
-export type SiteContent = Omit<ContentDatabase, "adminUsers">;
+/** Everything the site renders; admin accounts and secrets are never included. */
+export type SiteContent = Omit<ContentDatabase, "adminUsers" | "authSecret">;
 
 export function firstIssue(error: z.ZodError): string {
   return error.issues[0]?.message ?? "Invalid input.";

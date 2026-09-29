@@ -16,7 +16,11 @@ export default async function AdminUsersPage() {
         recognise.
       </p>
       <UsersManager
-        owner={process.env.ADMIN_USERNAME ?? "admin"}
+        owner={
+          process.env.ADMIN_USERNAME && process.env.ADMIN_PASSWORD_HASH
+            ? process.env.ADMIN_USERNAME
+            : null
+        }
         initial={users}
         currentUserId={session.uid}
         ownerId={OWNER_ID}

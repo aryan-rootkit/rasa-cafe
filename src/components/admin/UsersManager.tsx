@@ -17,7 +17,7 @@ export default function UsersManager({
   currentUserId,
   ownerId,
 }: {
-  owner: string;
+  owner: string | null;
   initial: PublicAdminUser[];
   currentUserId: string;
   ownerId: string;
@@ -45,12 +45,14 @@ export default function UsersManager({
     <div className="mt-8 space-y-5">
       <Notice notice={notice} onDismiss={dismiss} />
       <ul className="divide-y divide-stone-100 overflow-hidden rounded-xl border border-stone-200 bg-white">
-        <Row
-          icon={<ShieldCheck size={18} />}
-          name={owner}
-          detail="Owner · set in .env.local, can't be removed here"
-          you={currentUserId === ownerId}
-        />
+        {owner && (
+          <Row
+            icon={<ShieldCheck size={18} />}
+            name={owner}
+            detail="Owner · set in environment variables, can't be removed here"
+            you={currentUserId === ownerId}
+          />
+        )}
         {users.map((user) => (
           <Row
             key={user.id}

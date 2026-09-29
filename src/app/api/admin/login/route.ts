@@ -1,4 +1,3 @@
-import { timingSafeEqual } from "node:crypto";
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { isSameOrigin } from "@/lib/auth/guard";
@@ -15,31 +14,19 @@ import {
   sessionCookieOptions,
 } from "@/lib/auth/session";
 import { findAdminUserByUsername } from "@/lib/content/store";
+import { StorageNotConnectedError, storageConnected } from "@/lib/storage";
 
 const loginSchema = z.object({
-  username: z.string().trim().min(1).max(100),
+  username: z.string().trim().toLowerCase().min(1).max(100),
   password: z.string().min(1).max(200),
 });
-
-function safeEqual(a: string, b: string) {
-  const ab = Buffer.from(a);
-  const bb = Buffer.from(b);
-  return ab.length === bb.length && timingSafeEqual(ab, bb);
-}
 
 export async function POST(request: NextRequest) {
   if (!isSameOrigin(request)) {
     return NextResponse.json({ error: "Forbidden." }, { status: 403 });
   }
-
-  const expectedUser = process.env.ADMIN_USERNAME;
-  const passwordHash = process.env.ADMIN_PASSWORD_HASH;
-  if (!expectedUser || !passwordHash || (process.env.AUTH_SECRET ?? "").length < 32) {
-    console.error("Admin login is not configured. See .env.example.");
-    return NextResponse.json(
-      { error: "Admin login is not configured on this server." },
-      { status: 503 }
-    );
+  if (!storageConnected) {
+    return NextResponse.json({ error: new StorageNotConnectedError().message }, { status: 503 });
   }
 
   const ip =
@@ -63,13 +50,17 @@ export async function POST(request: NextRequest) {
       { status: 400 }
     );
   }
-
   const { username, password } = parsed.data;
-  const isOwner = safeEqual(username, expectedUser);
+
+  // Optional extra account defined by ADMIN_USERNAME / ADMIN_PASSWORD_HASH.
+  const ownerName = process.env.ADMIN_USERNAME?.toLowerCase();
+  const ownerHash = process.env.ADMIN_PASSWORD_HASH;
+  const isOwner = Boolean(ownerName && ownerHash && username === ownerName);
+
   const account = isOwner ? null : await findAdminUserByUsername(username);
   const passwordOk = await verifyPassword(
     password,
-    isOwner ? passwordHash : account?.passwordHash
+    isOwner ? ownerHash : account?.passwordHash
   );
 
   if (!passwordOk || (!isOwner && !account)) {
@@ -81,13 +72,10 @@ export async function POST(request: NextRequest) {
   }
 
   clearLoginAttempts(ip);
+  const token = isOwner
+    ? await createSessionToken(process.env.ADMIN_USERNAME!, OWNER_ID)
+    : await createSessionToken(account!.username, account!.id);
   const response = NextResponse.json({ ok: true });
-  response.cookies.set(
-    SESSION_COOKIE,
-    isOwner
-      ? createSessionToken(expectedUser, OWNER_ID)
-      : createSessionToken(account!.username, account!.id),
-    sessionCookieOptions
-  );
+  response.cookies.set(SESSION_COOKIE, token, sessionCookieOptions);
   return response;
 }

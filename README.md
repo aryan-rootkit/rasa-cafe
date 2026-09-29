@@ -14,28 +14,27 @@ Brand and menu showcase site for **RASA**, with a private admin panel for managi
 
 ```bash
 npm install
-cp .env.example .env.local   # then fill it in (see below)
 npm run dev
 ```
 
+No environment variables are required.
+
 Open [http://localhost:3000](http://localhost:3000). The admin panel is at [http://localhost:3000/admin](http://localhost:3000/admin) — it is not linked anywhere on the public site.
-
-### Admin credentials
-
-All secrets live in `.env.local` (never committed):
-
-| Variable | Purpose |
-| --- | --- |
-| `ADMIN_USERNAME` | Admin sign-in name |
-| `ADMIN_PASSWORD_HASH` | scrypt hash of the admin password — generate with `npm run hash-password -- "your-strong-password"` |
-| `AUTH_SECRET` | 32+ random characters used to sign session cookies. Changing it signs everyone out. |
-| `STORAGE_DIR` | Optional. Where `content.json` and uploads are kept (default `./storage`) |
-
-Sessions are signed, `HttpOnly`, `SameSite=Strict` cookies that expire after 8 hours. Login attempts are rate-limited per IP.
 
 ### Admin accounts
 
-The account in `.env.local` is the owner. **Anyone who opens `/admin/signup` can create their own admin account** with full access to the dashboard (limited to 5 sign-ups per IP every 15 minutes). Passwords are stored as scrypt hashes in `storage/content.json` and never reach the public site. Review accounts on the **Users** screen in the dashboard — removing someone signs them out immediately.
+Open `/admin`, choose **Create account**, pick a username and a password (8+ characters) and you're in. **Anyone who opens the admin URL can create an account** with full access to the dashboard (limited to 5 sign-ups per IP every 15 minutes), so review accounts on the **Users** screen — removing someone signs them out immediately.
+
+Passwords are stored as scrypt hashes and never reach the public site. Sessions are signed, `HttpOnly`, `SameSite=Strict` cookies that expire after 8 hours. Login attempts are rate-limited per IP.
+
+### Optional environment variables
+
+| Variable | Purpose |
+| --- | --- |
+| `AUTH_SECRET` | 32+ random characters used to sign session cookies. If unset, a random key is generated once and kept in storage. Changing it signs everyone out. |
+| `ADMIN_USERNAME` + `ADMIN_PASSWORD_HASH` | An extra owner account that can't be removed from the dashboard. Generate the hash with `npm run hash-password -- "your-strong-password"`. |
+| `STORAGE_DIR` | Where `content.json` and uploads are kept locally (default `./storage`) |
+| `BLOB_READ_WRITE_TOKEN` | Set automatically when a Vercel Blob store is connected (see below) |
 
 ## What the admin can manage
 
@@ -48,12 +47,22 @@ Saving in the admin revalidates `/` and `/menu`, so changes appear on the next p
 
 ## Content and storage
 
-- `src/lib/content/store.ts` is the only module that reads or writes content. It uses a JSON file (`storage/content.json`); swapping in a database means reimplementing that module.
+- `src/lib/content/store.ts` is the only module that reads or writes content. It keeps everything in one JSON file, `content.json`.
+- `src/lib/storage.ts` decides where files live: a private **Vercel Blob** store when one is connected, otherwise the local `storage/` folder.
 - On first run (no `content.json` yet) the site uses the seed content in `src/lib/content/defaults.ts`.
-- Uploads are validated by their actual bytes (JPG, PNG or WebP only, max 8 MB), stripped of metadata, resized to at most 2400px and re-encoded as WebP in `storage/uploads/`, then served from `/media/<id>.webp`. Unused uploads are cleaned up automatically.
+- Uploads are validated by their actual bytes (JPG, PNG or WebP only), stripped of metadata, resized to at most 2400px and re-encoded as WebP, then served from `/media/<id>.webp`. Photos over 4 MB are shrunk in the browser first, because Vercel rejects larger requests. Unused uploads are cleaned up automatically.
 - Brand copy (tagline, intro, Order of the Day) lives in `src/data/site.ts`.
 
-> **Hosting note:** content and uploads are stored on the server's disk, so deploy somewhere with a persistent filesystem (a VPS, Railway/Render with a volume, etc.) and back up the `storage/` folder. Serverless hosts like Vercel wipe the disk between deploys — use a database and object storage there instead.
+### Deploying on Vercel
+
+Vercel's disk is read-only, so the admin needs a Blob store to save anything:
+
+1. In the Vercel dashboard, open the project → **Storage** → **Create Database** → **Blob**, choose **Private** access, and connect it to the project (all environments).
+2. Redeploy. Vercel adds `BLOB_READ_WRITE_TOKEN` automatically.
+
+Until a store is connected the public site still works with the seed content, and the admin sign-in screen says storage isn't connected.
+
+On any other host with a persistent disk (a VPS, Railway/Render with a volume), no setup is needed; back up the `storage/` folder.
 
 ## Project structure
 

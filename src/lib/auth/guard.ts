@@ -9,11 +9,13 @@ import { OWNER_ID, SESSION_COOKIE, verifySessionToken } from "./session";
 /** A valid session whose account still exists; removed users are signed out immediately. */
 export async function getAdminSession() {
   const store = await cookies();
-  const session = verifySessionToken(store.get(SESSION_COOKIE)?.value);
+  const session = await verifySessionToken(store.get(SESSION_COOKIE)?.value);
   if (!session) return null;
 
   if (session.uid === OWNER_ID) {
-    return session.sub === process.env.ADMIN_USERNAME ? session : null;
+    return process.env.ADMIN_PASSWORD_HASH && session.sub === process.env.ADMIN_USERNAME
+      ? session
+      : null;
   }
   const user = await findAdminUserById(session.uid);
   return user && user.username === session.sub ? session : null;

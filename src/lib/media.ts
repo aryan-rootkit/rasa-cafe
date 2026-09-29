@@ -1,15 +1,19 @@
 import "server-only";
 
 import { randomUUID } from "node:crypto";
-import { mkdir, readdir, readFile, stat, unlink, writeFile } from "node:fs/promises";
-import path from "node:path";
 import sharp from "sharp";
-import { getReferencedMedia, STORAGE_DIR } from "@/lib/content/store";
+import { getReferencedMedia } from "@/lib/content/store";
+import {
+  deleteFileFromStorage,
+  listStorage,
+  readFileFromStorage,
+  writeFileToStorage,
+} from "@/lib/storage";
 import { checkUploadFile } from "@/lib/upload-rules";
 
 export { MAX_UPLOAD_BYTES } from "@/lib/upload-rules";
 
-const MEDIA_DIR = path.join(STORAGE_DIR, "uploads");
+const MEDIA_PREFIX = "uploads/";
 const MEDIA_NAME = /^[a-f0-9-]{36}\.webp$/;
 const MAX_DIMENSION = 2400;
 const ORPHAN_GRACE_MS = 60 * 60 * 1000;
@@ -48,15 +52,17 @@ export async function saveUploadedImage(file: File): Promise<string> {
     .toBuffer();
 
   const name = `${randomUUID()}.webp`;
-  await mkdir(MEDIA_DIR, { recursive: true });
-  await writeFile(path.join(MEDIA_DIR, name), output);
+  await writeFileToStorage(`${MEDIA_PREFIX}${name}`, output, {
+    contentType: "image/webp",
+    expectedVersion: null,
+  });
   return `/media/${name}`;
 }
 
 export async function readMedia(name: string): Promise<Buffer | null> {
   if (!MEDIA_NAME.test(name)) return null;
   try {
-    return await readFile(path.join(MEDIA_DIR, name));
+    return (await readFileFromStorage(`${MEDIA_PREFIX}${name}`))?.data ?? null;
   } catch {
     return null;
   }
@@ -67,22 +73,21 @@ export async function readMedia(name: string): Promise<Buffer | null> {
  * image uploaded but not yet saved in another tab isn't deleted underneath it.
  */
 export async function pruneUnusedMedia(): Promise<void> {
-  let files: string[];
-  try {
-    files = await readdir(MEDIA_DIR);
-  } catch {
-    return;
-  }
+  const files = await listStorage(MEDIA_PREFIX);
+  if (files.length === 0) return;
   const referenced = await getReferencedMedia();
   const now = Date.now();
 
   await Promise.all(
     files
-      .filter((name) => MEDIA_NAME.test(name) && !referenced.has(`/media/${name}`))
-      .map(async (name) => {
-        const filePath = path.join(MEDIA_DIR, name);
-        const { mtimeMs } = await stat(filePath);
-        if (now - mtimeMs > ORPHAN_GRACE_MS) await unlink(filePath).catch(() => {});
+      .filter(({ key, uploadedAt }) => {
+        const name = key.slice(MEDIA_PREFIX.length);
+        return (
+          MEDIA_NAME.test(name) &&
+          !referenced.has(`/media/${name}`) &&
+          now - uploadedAt.getTime() > ORPHAN_GRACE_MS
+        );
       })
+      .map(({ key }) => deleteFileFromStorage(key).catch(() => {}))
   );
 }

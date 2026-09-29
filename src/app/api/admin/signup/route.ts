@@ -9,17 +9,14 @@ import {
 } from "@/lib/auth/session";
 import { firstIssue, signupInputSchema } from "@/lib/content/schema";
 import { createAdminUser } from "@/lib/content/store";
+import { StorageNotConnectedError, storageConnected } from "@/lib/storage";
 
 export async function POST(request: NextRequest) {
   if (!isSameOrigin(request)) {
     return NextResponse.json({ error: "Forbidden." }, { status: 403 });
   }
-  if ((process.env.AUTH_SECRET ?? "").length < 32) {
-    console.error("Admin sign-up is not configured. See .env.example.");
-    return NextResponse.json(
-      { error: "Sign-up isn't available on this server." },
-      { status: 503 }
-    );
+  if (!storageConnected) {
+    return NextResponse.json({ error: new StorageNotConnectedError().message }, { status: 503 });
   }
 
   const ip =
@@ -54,11 +51,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "That username is taken." }, { status: 409 });
   }
 
+  const token = await createSessionToken(user.username, user.id);
   const response = NextResponse.json({ ok: true }, { status: 201 });
-  response.cookies.set(
-    SESSION_COOKIE,
-    createSessionToken(user.username, user.id),
-    sessionCookieOptions
-  );
+  response.cookies.set(SESSION_COOKIE, token, sessionCookieOptions);
   return response;
 }

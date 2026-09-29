@@ -9,7 +9,7 @@ export async function POST(request: NextRequest) {
   const declaredSize = Number(request.headers.get("content-length") ?? 0);
   if (declaredSize > MAX_UPLOAD_BYTES + 64 * 1024) {
     return NextResponse.json(
-      { error: "Images must be 8 MB or smaller." },
+      { error: "Images must be 4 MB or smaller." },
       { status: 413 }
     );
   }

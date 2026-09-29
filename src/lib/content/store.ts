@@ -1,8 +1,11 @@
 import "server-only";
 
-import { randomUUID } from "node:crypto";
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
-import path from "node:path";
+import { randomBytes, randomUUID } from "node:crypto";
+import {
+  readFileFromStorage,
+  StorageConflictError,
+  writeFileToStorage,
+} from "@/lib/storage";
 import { createDefaultContent } from "./defaults";
 import {
   HERO_IMAGE_LIMIT,
@@ -19,46 +22,59 @@ import {
 } from "./schema";
 
 /**
- * File-backed content store. Every read/write goes through this module, so
- * swapping it for a real database only means reimplementing these functions.
+ * JSON content store kept in `content.json` (see `@/lib/storage`). Every
+ * read/write goes through this module.
  */
 
-export const STORAGE_DIR = path.resolve(
-  /*turbopackIgnore: true*/ process.env.STORAGE_DIR ?? path.join(process.cwd(), "storage")
-);
-const DB_FILE = path.join(STORAGE_DIR, "content.json");
+const DB_KEY = "content.json";
+const MAX_WRITE_ATTEMPTS = 5;
 
 let writeQueue: Promise<unknown> = Promise.resolve();
 
+async function readDbVersioned(): Promise<{ db: ContentDatabase; version: string | null }> {
+  const file = await readFileFromStorage(DB_KEY, { fresh: true });
+  if (!file) return { db: createDefaultContent(), version: null };
+  return { db: JSON.parse(file.data.toString("utf8")) as ContentDatabase, version: file.version };
+}
+
 async function readDb(): Promise<ContentDatabase> {
-  try {
-    const raw = await readFile(DB_FILE, "utf8");
-    return JSON.parse(raw) as ContentDatabase;
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-      return createDefaultContent();
-    }
-    throw error;
-  }
+  return (await readDbVersioned()).db;
 }
 
-async function writeDb(db: ContentDatabase) {
-  await mkdir(STORAGE_DIR, { recursive: true });
-  const tmp = `${DB_FILE}.${process.pid}.${Date.now()}.tmp`;
-  await writeFile(tmp, JSON.stringify(db, null, 2), "utf8");
-  await rename(tmp, DB_FILE);
-}
-
-/** Serialises read-modify-write cycles so concurrent saves can't clobber each other. */
+/**
+ * Read-modify-write that retries when another server instance saved in
+ * between, so concurrent saves can't clobber each other.
+ */
 function mutate<T>(fn: (db: ContentDatabase) => T | Promise<T>): Promise<T> {
   const run = writeQueue.then(async () => {
-    const db = await readDb();
-    const result = await fn(db);
-    await writeDb(db);
-    return result;
+    for (let attempt = 1; ; attempt++) {
+      const { db, version } = await readDbVersioned();
+      const result = await fn(db);
+      try {
+        await writeFileToStorage(DB_KEY, JSON.stringify(db, null, 2), {
+          contentType: "application/json",
+          expectedVersion: version,
+        });
+        return result;
+      } catch (error) {
+        if (!(error instanceof StorageConflictError) || attempt >= MAX_WRITE_ATTEMPTS) throw error;
+      }
+    }
   });
   writeQueue = run.catch(() => undefined);
   return run;
+}
+
+let cachedSecret: string | undefined;
+
+/** Session signing key, created and saved on first use. */
+export async function getStoredAuthSecret(): Promise<string> {
+  if (cachedSecret) return cachedSecret;
+  const existing = (await readDb()).authSecret;
+  cachedSecret =
+    existing ??
+    (await mutate((db) => (db.authSecret ??= randomBytes(48).toString("base64url"))));
+  return cachedSecret;
 }
 
 const byPosition = <T extends { position: number }>(a: T, b: T) =>
@@ -67,6 +83,7 @@ const byPosition = <T extends { position: number }>(a: T, b: T) =>
 export async function getContent(): Promise<SiteContent> {
   const content: SiteContent = await readDb();
   delete (content as ContentDatabase).adminUsers;
+  delete (content as ContentDatabase).authSecret;
   content.heroImages.sort(byPosition);
   content.menuItems.sort(byPosition);
   return content;

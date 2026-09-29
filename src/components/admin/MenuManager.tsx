@@ -331,7 +331,7 @@ function MenuItemDialog({
                   Remove photo
                 </button>
               )}
-              <p className="text-xs text-stone-500">JPG, PNG or WebP, up to 8 MB.</p>
+              <p className="text-xs text-stone-500">JPG, PNG or WebP.</p>
             </div>
           </div>
 

@@ -1,4 +1,4 @@
-import { checkUploadFile } from "@/lib/upload-rules";
+import { checkUploadFile, MAX_SOURCE_BYTES, MAX_UPLOAD_BYTES } from "@/lib/upload-rules";
 
 export async function adminRequest<T>(
   url: string,
@@ -24,9 +24,34 @@ export async function adminRequest<T>(
   return data;
 }
 
-export async function uploadImage(file: File): Promise<string> {
-  const problem = checkUploadFile(file);
+/** Re-encodes large photos as a 2400px JPEG so they fit under the server's upload limit. */
+async function shrinkImage(file: File): Promise<File> {
+  if (file.size <= MAX_UPLOAD_BYTES) return file;
+  const bitmap = await createImageBitmap(file).catch(() => null);
+  if (!bitmap) throw new Error("That file isn't a readable image.");
+
+  const scale = Math.min(1, 2400 / Math.max(bitmap.width, bitmap.height));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.round(bitmap.width * scale);
+  canvas.height = Math.round(bitmap.height * scale);
+  canvas.getContext("2d")!.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  bitmap.close();
+
+  for (const quality of [0.9, 0.8, 0.7]) {
+    const blob = await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob(resolve, "image/jpeg", quality)
+    );
+    if (blob && blob.size <= MAX_UPLOAD_BYTES) {
+      return new File([blob], file.name.replace(/\.\w+$/, "") + ".jpg", { type: "image/jpeg" });
+    }
+  }
+  throw new Error("That image is too large. Try a smaller photo.");
+}
+
+export async function uploadImage(original: File): Promise<string> {
+  const problem = checkUploadFile(original, MAX_SOURCE_BYTES);
   if (problem) throw new Error(problem);
+  const file = await shrinkImage(original);
   const form = new FormData();
   form.append("file", file);
   const { url } = await adminRequest<{ url: string }>("/api/admin/upload", {
