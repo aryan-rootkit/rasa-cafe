@@ -9,20 +9,12 @@ import {
 } from "@/lib/auth/session";
 import { firstIssue, signupInputSchema } from "@/lib/content/schema";
 import { createAdminUser } from "@/lib/content/store";
-import {
-  describeStorageError,
-  StorageNotConnectedError,
-  storageConnected,
-} from "@/lib/storage";
+import { describeDatabaseError } from "@/lib/db/mongodb";
 
 export async function POST(request: NextRequest) {
   if (!isSameOrigin(request)) {
     return NextResponse.json({ error: "Forbidden." }, { status: 403 });
   }
-  if (!storageConnected) {
-    return NextResponse.json({ error: new StorageNotConnectedError().message }, { status: 503 });
-  }
-
   const ip =
     request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
     request.headers.get("x-real-ip") ||
@@ -59,7 +51,7 @@ export async function POST(request: NextRequest) {
     token = await createSessionToken(user.username, user.id);
   } catch (error) {
     console.error("Admin sign-up failed", error);
-    return NextResponse.json({ error: describeStorageError(error) }, { status: 503 });
+    return NextResponse.json({ error: describeDatabaseError(error) }, { status: 503 });
   }
 
   const response = NextResponse.json({ ok: true }, { status: 201 });

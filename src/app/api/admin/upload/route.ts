@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { guardAdminApi } from "@/lib/auth/guard";
 import { MAX_UPLOAD_BYTES, saveUploadedImage, UploadError } from "@/lib/media";
+import { StorageNotConnectedError } from "@/lib/storage";
 
 export async function POST(request: NextRequest) {
   const denied = await guardAdminApi(request);
@@ -28,8 +29,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 400 });
     }
     console.error("Image upload failed", error);
+    if (error instanceof StorageNotConnectedError) {
+      return NextResponse.json({ error: error.message }, { status: 503 });
+    }
     return NextResponse.json(
-      { error: "Couldn't process that image. Try another file." },
+      { error: "Couldn't save that image. Try again or use another file." },
       { status: 500 }
     );
   }

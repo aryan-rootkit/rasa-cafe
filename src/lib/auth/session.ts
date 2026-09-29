@@ -10,7 +10,7 @@ export const OWNER_ID = "owner";
 
 export type SessionPayload = { sub: string; uid: string; iat: number; exp: number };
 
-/** AUTH_SECRET if set, otherwise a random key generated once and kept in storage. */
+/** AUTH_SECRET if set, otherwise a random key generated once and kept in MongoDB. */
 async function getSecret(): Promise<string> {
   const secret = process.env.AUTH_SECRET;
   if (secret && secret.length >= 32) return secret;

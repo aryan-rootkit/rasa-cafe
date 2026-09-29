@@ -5,9 +5,9 @@ import path from "node:path";
 import { del, get, list, put } from "@vercel/blob";
 
 /**
- * Key/value file storage. Uses Vercel Blob when a Blob store is connected
- * (Vercel's own disk is read-only and wiped on every deploy), otherwise the
- * local `storage/` folder.
+ * File storage for uploaded images only (all other data lives in MongoDB).
+ * Uses Vercel Blob when a Blob store is connected (Vercel's own disk is
+ * read-only and wiped on every deploy), otherwise the local `storage/` folder.
  */
 
 export class StorageConflictError extends Error {}
@@ -15,22 +15,9 @@ export class StorageConflictError extends Error {}
 export class StorageNotConnectedError extends Error {
   constructor() {
     super(
-      "Storage isn't connected to this deployment. In Vercel: Storage → create a Blob store (Private) → Connect Project with all environments ticked, then Deployments → Redeploy."
+      "Image uploads need a Vercel Blob store on this deployment. In Vercel: Storage → create a Blob store (Private) → connect it to this project, then redeploy."
     );
   }
-}
-
-/** A message an admin can act on for a failed storage call. */
-export function describeStorageError(error: unknown): string {
-  const message = error instanceof Error ? error.message : String(error);
-  if (error instanceof StorageNotConnectedError) return message;
-  if (/public|private|access/i.test(message)) {
-    return "Your Vercel Blob store must use Private access. Create a new Blob store with Private access, connect it to this project and redeploy.";
-  }
-  if (/token|unauthori[sz]ed|forbidden|store.*(not found|suspended)/i.test(message)) {
-    return "Vercel Blob rejected the connection. Reconnect the Blob store to this project in Vercel's Storage tab and redeploy.";
-  }
-  return `Couldn't reach storage (${message}). Please try again.`;
 }
 
 export type StoredFile = { data: Buffer; version: string };
@@ -51,7 +38,7 @@ const blobToken = findBlobToken();
 const useBlob = Boolean(blobToken || process.env.BLOB_STORE_ID);
 const blobAuth = blobToken ? { token: blobToken } : {};
 
-/** True where saving is possible: locally, or on Vercel with a Blob store connected. */
+/** True where image uploads can be saved: locally, or on Vercel with a Blob store connected. */
 export const storageConnected = useBlob || !process.env.VERCEL;
 
 const LOCAL_DIR = path.resolve(

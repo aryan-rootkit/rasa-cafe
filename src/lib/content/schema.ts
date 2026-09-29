@@ -133,23 +133,22 @@ export type AdminUser = {
   id: string;
   username: string;
   passwordHash: string;
+  role: "admin";
   createdAt: string;
+  updatedAt: string;
 };
 
 export type PublicAdminUser = Pick<AdminUser, "id" | "username" | "createdAt">;
 
-export type ContentDatabase = {
-  version: 1;
+/** Everything the site renders; admin accounts and secrets are never included. */
+export type SiteContent = {
   settings: WebsiteSettings;
   heroImages: HeroImage[];
   menuItems: MenuItem[];
-  adminUsers?: AdminUser[];
-  /** Session signing key, used when AUTH_SECRET isn't set. */
-  authSecret?: string;
 };
 
-/** Everything the site renders; admin accounts and secrets are never included. */
-export type SiteContent = Omit<ContentDatabase, "adminUsers" | "authSecret">;
+/** Seed content shape (see defaults.ts). */
+export type ContentDatabase = SiteContent & { version: 1 };
 
 export function firstIssue(error: z.ZodError): string {
   return error.issues[0]?.message ?? "Invalid input.";

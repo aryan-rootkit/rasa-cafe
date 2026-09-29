@@ -14,11 +14,7 @@ import {
   sessionCookieOptions,
 } from "@/lib/auth/session";
 import { findAdminUserByUsername } from "@/lib/content/store";
-import {
-  describeStorageError,
-  StorageNotConnectedError,
-  storageConnected,
-} from "@/lib/storage";
+import { describeDatabaseError } from "@/lib/db/mongodb";
 
 const loginSchema = z.object({
   username: z.string().trim().toLowerCase().min(1).max(100),
@@ -29,10 +25,6 @@ export async function POST(request: NextRequest) {
   if (!isSameOrigin(request)) {
     return NextResponse.json({ error: "Forbidden." }, { status: 403 });
   }
-  if (!storageConnected) {
-    return NextResponse.json({ error: new StorageNotConnectedError().message }, { status: 503 });
-  }
-
   const ip =
     request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
     request.headers.get("x-real-ip") ||
@@ -82,7 +74,7 @@ export async function POST(request: NextRequest) {
       : await createSessionToken(account!.username, account!.id);
   } catch (error) {
     console.error("Admin login failed", error);
-    return NextResponse.json({ error: describeStorageError(error) }, { status: 503 });
+    return NextResponse.json({ error: describeDatabaseError(error) }, { status: 503 });
   }
 
   clearLoginAttempts(ip);

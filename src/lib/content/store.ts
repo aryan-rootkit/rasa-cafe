@@ -1,16 +1,18 @@
 import "server-only";
 
 import { randomBytes, randomUUID } from "node:crypto";
+import { MongoServerError, ObjectId, type WithId } from "mongodb";
 import {
-  readFileFromStorage,
-  StorageConflictError,
-  writeFileToStorage,
-} from "@/lib/storage";
+  collections,
+  type AdminUserDoc,
+  type HeroImageDoc,
+  type MenuItemDoc,
+} from "@/lib/db/collections";
+import { databaseConfigured } from "@/lib/db/mongodb";
 import { createDefaultContent } from "./defaults";
 import {
   HERO_IMAGE_LIMIT,
   type AdminUser,
-  type ContentDatabase,
   type HeroImage,
   type HeroImageInput,
   type MenuItem,
@@ -22,84 +24,92 @@ import {
 } from "./schema";
 
 /**
- * JSON content store kept in `content.json` (see `@/lib/storage`). Every
- * read/write goes through this module.
+ * MongoDB-backed content store. Every read/write goes through this module.
+ * Without MONGODB_URI (e.g. a fresh clone) reads return the seed content.
  */
 
-const DB_KEY = "content.json";
-const MAX_WRITE_ATTEMPTS = 5;
+const toHero = ({ _id, ...rest }: WithId<HeroImageDoc>): HeroImage => ({ id: _id, ...rest });
+const toMenuItem = ({ _id, ...rest }: WithId<MenuItemDoc>): MenuItem => ({ id: _id, ...rest });
+const toAdminUser = (doc: AdminUserDoc): AdminUser => ({
+  id: doc._id.toHexString(),
+  username: doc.username,
+  passwordHash: doc.passwordHash,
+  role: doc.role,
+  createdAt: doc.createdAt.toISOString(),
+  updatedAt: doc.updatedAt.toISOString(),
+});
 
-let writeQueue: Promise<unknown> = Promise.resolve();
+let seeded: Promise<void> | undefined;
 
-async function readDbVersioned(): Promise<{ db: ContentDatabase; version: string | null }> {
-  const file = await readFileFromStorage(DB_KEY, { fresh: true });
-  if (!file) return { db: createDefaultContent(), version: null };
-  return { db: JSON.parse(file.data.toString("utf8")) as ContentDatabase, version: file.version };
-}
+/** Fills an empty database with the seed content, exactly once across all instances. */
+async function db() {
+  const c = await collections();
+  seeded ??= (async () => {
+    const marker = await c.appConfig.updateOne(
+      { _id: "seed" },
+      { $setOnInsert: { createdAt: new Date() } },
+      { upsert: true }
+    );
+    if (!marker.upsertedCount) return;
 
-async function readDb(): Promise<ContentDatabase> {
-  return (await readDbVersioned()).db;
-}
-
-/**
- * Read-modify-write that retries when another server instance saved in
- * between, so concurrent saves can't clobber each other.
- */
-function mutate<T>(fn: (db: ContentDatabase) => T | Promise<T>): Promise<T> {
-  const run = writeQueue.then(async () => {
-    for (let attempt = 1; ; attempt++) {
-      const { db, version } = await readDbVersioned();
-      const result = await fn(db);
-      try {
-        await writeFileToStorage(DB_KEY, JSON.stringify(db, null, 2), {
-          contentType: "application/json",
-          expectedVersion: version,
-        });
-        return result;
-      } catch (error) {
-        if (!(error instanceof StorageConflictError) || attempt >= MAX_WRITE_ATTEMPTS) throw error;
-      }
-    }
+    const seed = createDefaultContent();
+    await Promise.all([
+      c.settings.insertOne({ _id: "site", ...seed.settings }),
+      c.heroImages.insertMany(seed.heroImages.map(({ id, ...rest }) => ({ _id: id, ...rest }))),
+      c.menuItems.insertMany(seed.menuItems.map(({ id, ...rest }) => ({ _id: id, ...rest }))),
+    ]);
+  })().catch((error) => {
+    seeded = undefined;
+    throw error;
   });
-  writeQueue = run.catch(() => undefined);
-  return run;
+  await seeded;
+  return c;
 }
 
 let cachedSecret: string | undefined;
 
-/** Session signing key, created and saved on first use. */
+/** Session signing key, generated once and kept in `app_config`. */
 export async function getStoredAuthSecret(): Promise<string> {
   if (cachedSecret) return cachedSecret;
-  const existing = (await readDb()).authSecret;
-  cachedSecret =
-    existing ??
-    (await mutate((db) => (db.authSecret ??= randomBytes(48).toString("base64url"))));
+  const c = await collections();
+  await c.appConfig.updateOne(
+    { _id: "authSecret" },
+    { $setOnInsert: { value: randomBytes(48).toString("base64url"), createdAt: new Date() } },
+    { upsert: true }
+  );
+  const doc = await c.appConfig.findOne({ _id: "authSecret" });
+  if (!doc?.value) throw new Error("Couldn't load the session key.");
+  cachedSecret = doc.value;
   return cachedSecret;
 }
 
-const byPosition = <T extends { position: number }>(a: T, b: T) =>
-  a.position - b.position;
-
 export async function getContent(): Promise<SiteContent> {
-  const content: SiteContent = await readDb();
-  delete (content as ContentDatabase).adminUsers;
-  delete (content as ContentDatabase).authSecret;
-  content.heroImages.sort(byPosition);
-  content.menuItems.sort(byPosition);
-  return content;
+  if (!databaseConfigured) {
+    const { settings, heroImages, menuItems } = createDefaultContent();
+    return { settings, heroImages, menuItems };
+  }
+  const c = await db();
+  const [settings, heroImages, menuItems] = await Promise.all([
+    getSettings(),
+    c.heroImages.find().sort({ position: 1 }).toArray(),
+    c.menuItems.find().sort({ position: 1 }).toArray(),
+  ]);
+  return { settings, heroImages: heroImages.map(toHero), menuItems: menuItems.map(toMenuItem) };
 }
 
 export async function getSettings(): Promise<WebsiteSettings> {
-  return (await readDb()).settings;
+  if (!databaseConfigured) return createDefaultContent().settings;
+  const doc = await (await db()).settings.findOne(
+    { _id: "site" },
+    { projection: { _id: 0 } }
+  );
+  return doc ?? createDefaultContent().settings;
 }
 
-export async function updateSettings(
-  input: SettingsInput
-): Promise<WebsiteSettings> {
-  return mutate((db) => {
-    db.settings = { ...input, updatedAt: new Date().toISOString() };
-    return db.settings;
-  });
+export async function updateSettings(input: SettingsInput): Promise<WebsiteSettings> {
+  const settings: WebsiteSettings = { ...input, updatedAt: new Date().toISOString() };
+  await (await db()).settings.replaceOne({ _id: "site" }, settings, { upsert: true });
+  return settings;
 }
 
 export async function getPublicHeroImages(): Promise<HeroImage[]> {
@@ -108,33 +118,39 @@ export async function getPublicHeroImages(): Promise<HeroImage[]> {
 }
 
 /** Replaces the whole hero list; array order becomes display order. */
-export async function saveHeroImages(
-  input: HeroImageInput[]
-): Promise<HeroImage[]> {
-  return mutate((db) => {
-    const now = new Date().toISOString();
-    const existing = new Map(db.heroImages.map((img) => [img.id, img]));
+export async function saveHeroImages(input: HeroImageInput[]): Promise<HeroImage[]> {
+  const c = await db();
+  const now = new Date().toISOString();
+  const existing = new Map(
+    (await c.heroImages.find().toArray()).map((doc) => [doc._id, doc])
+  );
 
-    db.heroImages = input.slice(0, HERO_IMAGE_LIMIT).map((item, position) => {
-      const prev = item.id ? existing.get(item.id) : undefined;
-      const changed =
-        !prev ||
-        prev.imageUrl !== item.imageUrl ||
-        prev.altText !== item.altText ||
-        prev.isActive !== item.isActive ||
-        prev.position !== position;
-      return {
-        id: prev?.id ?? randomUUID(),
-        imageUrl: item.imageUrl,
-        altText: item.altText,
-        isActive: item.isActive,
-        position,
-        createdAt: prev?.createdAt ?? now,
-        updatedAt: changed ? now : prev.updatedAt,
-      };
-    });
-    return db.heroImages;
+  const images: HeroImage[] = input.slice(0, HERO_IMAGE_LIMIT).map((item, position) => {
+    const prev = item.id ? existing.get(item.id) : undefined;
+    const changed =
+      !prev ||
+      prev.imageUrl !== item.imageUrl ||
+      prev.altText !== item.altText ||
+      prev.isActive !== item.isActive ||
+      prev.position !== position;
+    return {
+      id: prev?._id ?? randomUUID(),
+      imageUrl: item.imageUrl,
+      altText: item.altText,
+      isActive: item.isActive,
+      position,
+      createdAt: prev?.createdAt ?? now,
+      updatedAt: changed ? now : prev.updatedAt,
+    };
   });
+
+  await c.heroImages.bulkWrite([
+    { deleteMany: { filter: { _id: { $nin: images.map((img) => img.id) } } } },
+    ...images.map(({ id, ...rest }) => ({
+      replaceOne: { filter: { _id: id }, replacement: rest, upsert: true },
+    })),
+  ]);
+  return images;
 }
 
 export async function getMenuItems(): Promise<MenuItem[]> {
@@ -146,55 +162,57 @@ export async function getVisibleMenuItems(): Promise<MenuItem[]> {
 }
 
 export async function createMenuItem(input: MenuItemInput): Promise<MenuItem> {
-  return mutate((db) => {
-    const now = new Date().toISOString();
-    const item: MenuItem = {
-      ...input,
-      id: randomUUID(),
-      position: Math.max(-1, ...db.menuItems.map((m) => m.position)) + 1,
-      createdAt: now,
-      updatedAt: now,
-    };
-    db.menuItems.push(item);
-    return item;
-  });
+  const c = await db();
+  const last = await c.menuItems.find().sort({ position: -1 }).limit(1).next();
+  const now = new Date().toISOString();
+  const item: MenuItem = {
+    ...input,
+    id: randomUUID(),
+    position: (last?.position ?? -1) + 1,
+    createdAt: now,
+    updatedAt: now,
+  };
+  const { id, ...doc } = item;
+  await c.menuItems.insertOne({ _id: id, ...doc });
+  return item;
 }
 
-export async function updateMenuItem(
-  id: string,
-  input: MenuItemInput
-): Promise<MenuItem | null> {
-  return mutate((db) => {
-    const item = db.menuItems.find((m) => m.id === id);
-    if (!item) return null;
-    Object.assign(item, input, { updatedAt: new Date().toISOString() });
-    return item;
-  });
+export async function updateMenuItem(id: string, input: MenuItemInput): Promise<MenuItem | null> {
+  const doc = await (await db()).menuItems.findOneAndUpdate(
+    { _id: id },
+    { $set: { ...input, updatedAt: new Date().toISOString() } },
+    { returnDocument: "after" }
+  );
+  return doc ? toMenuItem(doc) : null;
 }
 
 export async function deleteMenuItem(id: string): Promise<boolean> {
-  return mutate((db) => {
-    const before = db.menuItems.length;
-    db.menuItems = db.menuItems.filter((m) => m.id !== id);
-    return db.menuItems.length < before;
-  });
+  return (await (await db()).menuItems.deleteOne({ _id: id })).deletedCount > 0;
 }
 
-export async function findAdminUserByUsername(
-  username: string
-): Promise<AdminUser | null> {
-  const users = (await readDb()).adminUsers ?? [];
-  return users.find((u) => u.username === username.toLowerCase()) ?? null;
+export async function findAdminUserByUsername(username: string): Promise<AdminUser | null> {
+  const doc = await (await collections()).adminUsers.findOne({
+    username: username.toLowerCase(),
+  });
+  return doc ? toAdminUser(doc) : null;
 }
 
 export async function findAdminUserById(id: string): Promise<AdminUser | null> {
-  const users = (await readDb()).adminUsers ?? [];
-  return users.find((u) => u.id === id) ?? null;
+  if (!ObjectId.isValid(id)) return null;
+  const doc = await (await collections()).adminUsers.findOne({ _id: new ObjectId(id) });
+  return doc ? toAdminUser(doc) : null;
 }
 
 export async function listAdminUsers(): Promise<PublicAdminUser[]> {
-  const users = (await readDb()).adminUsers ?? [];
-  return users.map(({ id, username, createdAt }) => ({ id, username, createdAt }));
+  const docs = await (await collections()).adminUsers
+    .find({}, { projection: { passwordHash: 0 } })
+    .sort({ createdAt: 1 })
+    .toArray();
+  return docs.map((doc) => ({
+    id: doc._id.toHexString(),
+    username: doc.username,
+    createdAt: doc.createdAt.toISOString(),
+  }));
 }
 
 /** Returns null when the username is already taken. */
@@ -202,33 +220,36 @@ export async function createAdminUser(
   username: string,
   passwordHash: string
 ): Promise<AdminUser | null> {
-  return mutate((db) => {
-    db.adminUsers ??= [];
-    if (db.adminUsers.some((u) => u.username === username)) return null;
-    const user: AdminUser = {
-      id: randomUUID(),
-      username,
-      passwordHash,
-      createdAt: new Date().toISOString(),
-    };
-    db.adminUsers.push(user);
-    return user;
-  });
+  const now = new Date();
+  const doc: AdminUserDoc = {
+    _id: new ObjectId(),
+    username: username.toLowerCase(),
+    passwordHash,
+    role: "admin",
+    createdAt: now,
+    updatedAt: now,
+  };
+  try {
+    await (await collections()).adminUsers.insertOne(doc);
+  } catch (error) {
+    if (error instanceof MongoServerError && error.code === 11000) return null;
+    throw error;
+  }
+  return toAdminUser(doc);
 }
 
 export async function deleteAdminUser(id: string): Promise<boolean> {
-  return mutate((db) => {
-    const before = db.adminUsers?.length ?? 0;
-    db.adminUsers = (db.adminUsers ?? []).filter((u) => u.id !== id);
-    return db.adminUsers.length < before;
-  });
+  if (!ObjectId.isValid(id)) return false;
+  const result = await (await collections()).adminUsers.deleteOne({ _id: new ObjectId(id) });
+  return result.deletedCount > 0;
 }
 
 /** Every uploaded media URL currently referenced by saved content. */
 export async function getReferencedMedia(): Promise<Set<string>> {
-  const db = await readDb();
-  return new Set(
-    [...db.heroImages.map((i) => i.imageUrl), ...db.menuItems.map((m) => m.imageUrl)]
-      .filter((url) => url.startsWith("/media/"))
-  );
+  const c = await db();
+  const [hero, menu] = await Promise.all([
+    c.heroImages.distinct("imageUrl"),
+    c.menuItems.distinct("imageUrl"),
+  ]);
+  return new Set([...hero, ...menu].filter((url) => url.startsWith("/media/")));
 }
