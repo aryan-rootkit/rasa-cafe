@@ -2,7 +2,7 @@
 
 import { motion } from "framer-motion";
 import { ArrowRight } from "lucide-react";
-import { siteInfo } from "@/data/site";
+import { brand } from "@/data/site";
 import Reveal from "@/components/Reveal";
 
 export default function IntroSection() {
@@ -19,7 +19,7 @@ export default function IntroSection() {
 
         <Reveal delay={0.12} className="flex flex-col justify-end md:col-span-5 md:pl-8">
           <p className="max-w-sm text-[15px] leading-relaxed text-ink-soft md:text-base">
-            {siteInfo.description}
+            {brand.description}
           </p>
           <motion.a
             href="#story"

@@ -1,12 +1,17 @@
 "use client";
 
-import ProductCard from "@/components/ProductCard";
+import ProductCard, { type ProductCardItem } from "@/components/ProductCard";
 import Reveal from "@/components/Reveal";
-import { topSellers } from "@/data/site";
 
-export default function TopSellers() {
+export default function TopSellers({
+  items,
+}: {
+  items: Array<ProductCardItem & { id: string }>;
+}) {
+  if (items.length === 0) return null;
+
   return (
-    <section id="order" className="section-pad pb-24 md:pb-36">
+    <section id="favourites" className="section-pad pb-24 md:pb-36">
       <div className="mx-auto max-w-7xl">
         <Reveal>
           <p className="text-[11px] tracking-[0.22em] text-muted uppercase">
@@ -21,10 +26,10 @@ export default function TopSellers() {
         </Reveal>
 
         <div className="mt-14 grid gap-10 sm:grid-cols-2 lg:grid-cols-3 lg:gap-x-8 lg:gap-y-16">
-          {topSellers.map((product, index) => (
+          {items.map((item, index) => (
             <ProductCard
-              key={product.id}
-              product={product}
+              key={item.id}
+              item={item}
               index={index}
               layout={index % 5 === 2 ? "wide" : "tall"}
             />

@@ -1,17 +1,30 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
-import MenuItem from "@/components/MenuItem";
+import MenuItem, { type MenuRowItem } from "@/components/MenuItem";
 import Reveal from "@/components/Reveal";
-import { menuCategories } from "@/data/site";
+import { MENU_CATEGORIES, type MenuCategoryId } from "@/lib/content/categories";
 import { cn } from "@/lib/cn";
 
-export default function MenuPreview() {
-  const [active, setActive] = useState(menuCategories[0].id);
-  const category =
-    menuCategories.find((c) => c.id === active) ?? menuCategories[0];
+const PREVIEW_LIMIT = 5;
+
+type PreviewItem = MenuRowItem & { id: string; category: MenuCategoryId };
+
+export default function MenuPreview({ items }: { items: PreviewItem[] }) {
+  const categories = MENU_CATEGORIES.map((cat) => ({
+    ...cat,
+    items: items.filter((item) => item.category === cat.id),
+  })).filter((cat) => cat.items.length > 0);
+
+  const [activeId, setActiveId] = useState<MenuCategoryId | undefined>(
+    categories[0]?.id
+  );
+  const category = categories.find((c) => c.id === activeId) ?? categories[0];
+
+  if (!category) return null;
 
   return (
     <section id="menu" className="section-pad py-24 md:py-36">
@@ -25,15 +38,16 @@ export default function MenuPreview() {
           </h2>
         </Reveal>
 
-        <div className="mt-12 flex gap-2 overflow-x-auto pb-2 no-scrollbar md:mt-16 md:flex-wrap md:gap-3">
-          {menuCategories.map((cat) => (
+        <div className="no-scrollbar mt-12 flex gap-2 overflow-x-auto pb-2 md:mt-16 md:flex-wrap md:gap-3">
+          {categories.map((cat) => (
             <button
               key={cat.id}
               type="button"
-              onClick={() => setActive(cat.id)}
+              onClick={() => setActiveId(cat.id)}
+              aria-pressed={category.id === cat.id}
               className={cn(
-                "shrink-0 border px-4 py-2 text-[11px] tracking-[0.16em] uppercase transition-colors duration-300",
-                active === cat.id
+                "min-h-10 shrink-0 border px-4 py-2 text-[11px] tracking-[0.16em] uppercase transition-colors duration-300",
+                category.id === cat.id
                   ? "border-ink bg-ink text-cream"
                   : "border-line text-ink-soft hover:border-ink/40 hover:text-ink"
               )}
@@ -49,8 +63,7 @@ export default function MenuPreview() {
               {category.label}
             </p>
             <p className="mt-4 max-w-xs text-sm leading-relaxed text-muted">
-              A curated taste of what we serve — full menu available in café and
-              soon online.
+              A curated taste of what we serve. Come in for the full table.
             </p>
           </Reveal>
 
@@ -63,19 +76,23 @@ export default function MenuPreview() {
                 exit={{ opacity: 0, y: -8 }}
                 transition={{ duration: 0.35 }}
               >
-                {category.items.map((item) => (
+                {category.items.slice(0, PREVIEW_LIMIT).map((item) => (
                   <MenuItem key={item.id} item={item} />
                 ))}
               </motion.ul>
             </AnimatePresence>
 
-            <a
-              href="#menu"
-              className="mt-10 inline-flex items-center gap-2 text-[13px] tracking-[0.14em] text-ink uppercase transition-opacity hover:opacity-70"
+            <Link
+              href="/menu"
+              className="group mt-10 inline-flex min-h-11 items-center gap-2 text-[13px] tracking-[0.14em] text-ink uppercase transition-opacity hover:opacity-70"
             >
               View Full Menu
-              <ArrowRight size={16} strokeWidth={1.5} />
-            </a>
+              <ArrowRight
+                size={16}
+                strokeWidth={1.5}
+                className="transition-transform duration-300 group-hover:translate-x-1"
+              />
+            </Link>
           </div>
         </div>
       </div>

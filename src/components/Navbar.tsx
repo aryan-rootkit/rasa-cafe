@@ -1,12 +1,19 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
-import { Menu, X } from "lucide-react";
-import { navLinks, siteInfo } from "@/data/site";
+import { ArrowUpRight, Menu, X } from "lucide-react";
+import InstagramIcon from "@/components/InstagramIcon";
+import { brand, navLinks } from "@/data/site";
 import { cn } from "@/lib/cn";
 
-export default function Navbar() {
+type NavbarProps = {
+  mapsUrl: string;
+  instagramUrl: string;
+};
+
+export default function Navbar({ mapsUrl, instagramUrl }: NavbarProps) {
   const [scrolled, setScrolled] = useState(false);
   const [open, setOpen] = useState(false);
 
@@ -34,40 +41,48 @@ export default function Navbar() {
       >
         <div className="section-pad">
           <nav
+            aria-label="Main"
             className={cn(
-              "mx-auto flex max-w-7xl items-center justify-between rounded-full border px-5 py-3 transition-all duration-500 md:px-7",
+              "mx-auto flex max-w-7xl items-center justify-between rounded-full border px-5 py-2 transition-all duration-500 md:px-7",
               scrolled || open
                 ? "border-line bg-cream/80 shadow-[0_8px_30px_rgba(26,24,20,0.06)] backdrop-blur-xl"
                 : "border-transparent bg-transparent"
             )}
           >
-            <a
-              href="#home"
+            <Link
+              href="/"
               className="font-serif text-2xl tracking-[0.12em] text-ink transition-opacity hover:opacity-70"
             >
-              {siteInfo.name}
-            </a>
+              {brand.name}
+            </Link>
 
             <ul className="hidden items-center gap-9 md:flex">
               {navLinks.map((link) => (
                 <li key={link.href}>
-                  <a
+                  <Link
                     href={link.href}
                     className="group relative text-[13px] tracking-[0.14em] text-ink-soft uppercase transition-colors hover:text-ink"
                   >
                     {link.label}
                     <span className="absolute -bottom-1 left-0 h-px w-0 bg-ink transition-all duration-300 group-hover:w-full" />
-                  </a>
+                  </Link>
                 </li>
               ))}
             </ul>
 
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1">
               <a
-                href="#order"
-                className="hidden items-center border border-ink/15 bg-ink px-5 py-2.5 text-[12px] tracking-[0.16em] text-cream uppercase transition-colors hover:bg-ink-soft md:inline-flex"
+                href={mapsUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="group hidden min-h-10 items-center gap-1.5 border border-ink/15 bg-ink px-5 py-2.5 text-[12px] tracking-[0.16em] text-cream uppercase transition-colors hover:bg-ink-soft md:inline-flex"
               >
-                Order Now
+                Get Directions
+                <ArrowUpRight
+                  size={14}
+                  strokeWidth={1.5}
+                  className="transition-transform duration-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
+                />
               </a>
               <button
                 type="button"
@@ -94,28 +109,46 @@ export default function Navbar() {
           >
             <div className="flex h-full flex-col justify-center gap-8 px-8 pt-16">
               {navLinks.map((link, i) => (
-                <motion.a
+                <motion.div
                   key={link.href}
-                  href={link.href}
-                  onClick={() => setOpen(false)}
                   initial={{ opacity: 0, y: 16 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.05 * i, duration: 0.4 }}
-                  className="font-serif text-4xl tracking-wide text-ink"
                 >
-                  {link.label}
-                </motion.a>
+                  <Link
+                    href={link.href}
+                    onClick={() => setOpen(false)}
+                    className="font-serif text-4xl tracking-wide text-ink"
+                  >
+                    {link.label}
+                  </Link>
+                </motion.div>
               ))}
-              <motion.a
-                href="#order"
-                onClick={() => setOpen(false)}
+              <motion.div
                 initial={{ opacity: 0, y: 16 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.25, duration: 0.4 }}
-                className="mt-4 inline-flex w-fit border border-ink bg-ink px-6 py-3 text-[12px] tracking-[0.16em] text-cream uppercase"
+                className="mt-4 flex flex-wrap items-center gap-6"
               >
-                Order Now
-              </motion.a>
+                <a
+                  href={mapsUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex min-h-11 items-center gap-1.5 border border-ink bg-ink px-6 py-3 text-[12px] tracking-[0.16em] text-cream uppercase"
+                >
+                  Get Directions
+                  <ArrowUpRight size={14} strokeWidth={1.5} />
+                </a>
+                <a
+                  href={instagramUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex min-h-11 items-center gap-2 text-[12px] tracking-[0.16em] text-ink uppercase"
+                >
+                  <InstagramIcon size={16} />
+                  Instagram
+                </a>
+              </motion.div>
             </div>
           </motion.div>
         )}

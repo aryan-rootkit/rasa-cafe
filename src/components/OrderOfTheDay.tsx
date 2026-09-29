@@ -1,7 +1,8 @@
 "use client";
 
 import Image from "next/image";
-import { motion } from "framer-motion";
+import Link from "next/link";
+import { ArrowRight } from "lucide-react";
 import Reveal from "@/components/Reveal";
 import { formatPrice, orderOfTheDay } from "@/data/site";
 
@@ -49,13 +50,17 @@ export default function OrderOfTheDay() {
 
             <p className="mt-8 font-serif text-3xl">{formatPrice(item.price)}</p>
 
-            <motion.a
-              href="#order"
-              whileHover={{ y: -1 }}
-              className="mt-10 inline-flex items-center border border-cream/30 bg-cream px-7 py-3.5 text-[12px] tracking-[0.18em] text-ink uppercase transition-colors hover:bg-transparent hover:text-cream"
+            <Link
+              href="/menu"
+              className="group mt-10 inline-flex min-h-11 items-center gap-2 text-[12px] tracking-[0.18em] text-cream uppercase transition-opacity hover:opacity-70"
             >
-              Order this
-            </motion.a>
+              Explore the menu
+              <ArrowRight
+                size={16}
+                strokeWidth={1.5}
+                className="transition-transform duration-300 group-hover:translate-x-1"
+              />
+            </Link>
           </Reveal>
         </div>
       </div>
