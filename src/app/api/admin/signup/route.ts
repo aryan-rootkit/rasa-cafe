@@ -9,7 +9,11 @@ import {
 } from "@/lib/auth/session";
 import { firstIssue, signupInputSchema } from "@/lib/content/schema";
 import { createAdminUser } from "@/lib/content/store";
-import { StorageNotConnectedError, storageConnected } from "@/lib/storage";
+import {
+  describeStorageError,
+  StorageNotConnectedError,
+  storageConnected,
+} from "@/lib/storage";
 
 export async function POST(request: NextRequest) {
   if (!isSameOrigin(request)) {
@@ -46,12 +50,18 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "That username is taken." }, { status: 409 });
   }
 
-  const user = await createAdminUser(username, await hashPassword(password));
-  if (!user) {
-    return NextResponse.json({ error: "That username is taken." }, { status: 409 });
+  let token: string;
+  try {
+    const user = await createAdminUser(username, await hashPassword(password));
+    if (!user) {
+      return NextResponse.json({ error: "That username is taken." }, { status: 409 });
+    }
+    token = await createSessionToken(user.username, user.id);
+  } catch (error) {
+    console.error("Admin sign-up failed", error);
+    return NextResponse.json({ error: describeStorageError(error) }, { status: 503 });
   }
 
-  const token = await createSessionToken(user.username, user.id);
   const response = NextResponse.json({ ok: true }, { status: 201 });
   response.cookies.set(SESSION_COOKIE, token, sessionCookieOptions);
   return response;

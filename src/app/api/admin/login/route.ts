@@ -14,7 +14,11 @@ import {
   sessionCookieOptions,
 } from "@/lib/auth/session";
 import { findAdminUserByUsername } from "@/lib/content/store";
-import { StorageNotConnectedError, storageConnected } from "@/lib/storage";
+import {
+  describeStorageError,
+  StorageNotConnectedError,
+  storageConnected,
+} from "@/lib/storage";
 
 const loginSchema = z.object({
   username: z.string().trim().toLowerCase().min(1).max(100),
@@ -57,24 +61,31 @@ export async function POST(request: NextRequest) {
   const ownerHash = process.env.ADMIN_PASSWORD_HASH;
   const isOwner = Boolean(ownerName && ownerHash && username === ownerName);
 
-  const account = isOwner ? null : await findAdminUserByUsername(username);
-  const passwordOk = await verifyPassword(
-    password,
-    isOwner ? ownerHash : account?.passwordHash
-  );
-
-  if (!passwordOk || (!isOwner && !account)) {
-    recordFailedLogin(ip);
-    return NextResponse.json(
-      { error: "Incorrect username or password." },
-      { status: 401 }
+  let token: string;
+  try {
+    const account = isOwner ? null : await findAdminUserByUsername(username);
+    const passwordOk = await verifyPassword(
+      password,
+      isOwner ? ownerHash : account?.passwordHash
     );
+
+    if (!passwordOk || (!isOwner && !account)) {
+      recordFailedLogin(ip);
+      return NextResponse.json(
+        { error: "Incorrect username or password." },
+        { status: 401 }
+      );
+    }
+
+    token = isOwner
+      ? await createSessionToken(process.env.ADMIN_USERNAME!, OWNER_ID)
+      : await createSessionToken(account!.username, account!.id);
+  } catch (error) {
+    console.error("Admin login failed", error);
+    return NextResponse.json({ error: describeStorageError(error) }, { status: 503 });
   }
 
   clearLoginAttempts(ip);
-  const token = isOwner
-    ? await createSessionToken(process.env.ADMIN_USERNAME!, OWNER_ID)
-    : await createSessionToken(account!.username, account!.id);
   const response = NextResponse.json({ ok: true });
   response.cookies.set(SESSION_COOKIE, token, sessionCookieOptions);
   return response;
