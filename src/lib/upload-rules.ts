@@ -8,11 +8,11 @@ export const ACCEPT_ATTRIBUTE = ".jpg,.jpeg,.png,.webp,image/jpeg,image/png,imag
 /** Returns an error message, or null if the file may be uploaded. */
 export function checkUploadFile(file: File, maxBytes = MAX_UPLOAD_BYTES): string | null {
   if (!ALLOWED_MIME_TYPES.includes(file.type)) {
-    return "Only JPG, PNG and WebP images are allowed.";
+    return "Unsupported image format. Use JPG, PNG or WebP.";
   }
   if (file.size === 0) return "The file is empty.";
   if (file.size > maxBytes) {
-    return `Images must be ${Math.round(maxBytes / 1024 / 1024)} MB or smaller.`;
+    return `Image is too large. Use an image under ${Math.round(maxBytes / 1024 / 1024)} MB.`;
   }
   return null;
 }

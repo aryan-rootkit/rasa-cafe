@@ -38,14 +38,11 @@ Accounts are stored in the MongoDB `admin_users` collection (`username`, `passwo
 | `MONGODB_URI` | **Required.** MongoDB Atlas connection string. Server-side only — never prefix it with `NEXT_PUBLIC_`. |
 | `MONGODB_DB` | Optional database name. Defaults to the one in the URI, or `rasacafe`. |
 | `AUTH_SECRET` | Optional. 32+ random characters used to sign session cookies. If unset, a random key is generated once and kept in MongoDB (`app_config`). Changing it signs everyone out. |
-| `BLOB_READ_WRITE_TOKEN` | Needed on Vercel for **image uploads only**. Set automatically when a Vercel Blob store is connected. |
 | `ADMIN_USERNAME` + `ADMIN_PASSWORD_HASH` | Optional extra owner account that can't be removed from the dashboard. Generate the hash with `npm run hash-password -- "your-strong-password"`. |
-| `STORAGE_DIR` | Optional. Where uploaded images are kept when not using Blob (default `./storage`). |
-
 ## What the admin can manage
 
 - **Website Settings** — Instagram, Google Maps link, email, two phone numbers, address, opening hours
-- **Hero Images** — the 10-image moving gallery: upload, replace, delete, reorder (drag or arrows), alt text, show/hide
+- **Hero Images** (`/admin/images`) — the 10-image moving gallery: upload, replace, delete, reorder (drag or arrows), alt text, show/hide
 - **Menu** — add, edit, delete, photo, category, price, visibility, and "favourite" (featured items with a photo appear in *The RASA favourites*)
 - **Users** — see everyone who can sign in and remove accounts
 
@@ -56,22 +53,23 @@ Saving in the admin revalidates `/` and `/menu`, so changes appear on the next p
 - **MongoDB** holds all data: `admin_users`, `settings`, `hero_images`, `menu_items` and `app_config`. `src/lib/content/store.ts` is the only module that reads or writes it; the cached connection lives in `src/lib/db/mongodb.ts`.
 - On first run an empty database is filled with the seed content from `src/lib/content/defaults.ts`. Without `MONGODB_URI` the public site renders that seed content read-only.
 - Menu categories are fixed in `src/lib/content/categories.ts`.
-- **Image files** are stored by `src/lib/storage.ts`: a private Vercel Blob store when one is connected, otherwise the local `storage/` folder.
-- Uploads are validated by their actual bytes (JPG, PNG or WebP only), stripped of metadata, resized to at most 2400px and re-encoded as WebP, then served from `/media/<id>.webp`. Photos over 4 MB are shrunk in the browser first, because Vercel rejects larger requests. Unused uploads are cleaned up automatically.
+- **Uploaded images** are stored in MongoDB **GridFS** (`fs.files` + `fs.chunks`) by `src/lib/images.ts`. Hero and menu documents keep the GridFS file id (`fileId` / `imageFileId`) plus the public URL `/api/images/<id>`.
+- `POST /api/admin/images` (admins only) validates the actual bytes (JPG, PNG or WebP only, max 4 MB), strips metadata, resizes to at most 2400px and re-encodes as WebP. Photos over 4 MB are shrunk in the browser first, because Vercel rejects larger requests.
+- `GET /api/images/<id>` streams the file from GridFS with long-lived immutable caching; pages render it through `next/image`, which serves resized versions. Replacing or deleting an image (or a menu item) deletes the old GridFS file; uploads never saved are removed after an hour.
+- The bundled default photos in `public/images` are served as static files until replaced from the admin.
 - Brand copy (tagline, intro, Order of the Day) lives in `src/data/site.ts`.
 
 ### Deploying on Vercel
 
 1. Add `MONGODB_URI` in **Settings → Environment Variables** for all environments.
 2. In MongoDB Atlas → **Network Access**, allow `0.0.0.0/0` (Vercel has no fixed IPs).
-3. For image uploads, create a **Blob** store with **Private** access under **Storage** and connect it to the project. Sign-up, login, settings and menu editing work without it.
-4. Redeploy.
+3. Redeploy. No other storage service is needed; images are stored in MongoDB.
 
 ## Project structure
 
 ```
 src/
-  app/              Public pages (/, /menu), admin pages (/admin/*), API routes (/api/admin/*), media route
+  app/              Public pages (/, /menu), admin pages (/admin/*), API routes (/api/admin/*), public image route (/api/images/[id])
   components/       Public site sections
   components/admin/ Admin UI
   data/             Brand copy
@@ -80,7 +78,6 @@ src/
   lib/db/           MongoDB connection and collection types
   proxy.ts          Redirects signed-out visitors away from /admin
 public/images/      Seed photography
-storage/            Locally uploaded images when not using Blob (gitignored)
 ```
 
 ## Scripts

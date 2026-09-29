@@ -76,7 +76,7 @@ export default function HeroManager({ initial }: { initial: HeroImage[] }) {
     setBusyKey(busy);
     setNotice(null);
     try {
-      const url = await uploadImage(file);
+      const url = await uploadImage(file, "hero");
       if (replaceKey) {
         update(rows.map((r) => (r.key === replaceKey ? { ...r, imageUrl: url } : r)));
       } else {

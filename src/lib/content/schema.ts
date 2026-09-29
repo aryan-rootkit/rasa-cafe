@@ -10,9 +10,9 @@ const categoryIds = MENU_CATEGORIES.map((c) => c.id) as [
   ...MenuCategoryId[],
 ];
 
-// Only images we host ourselves: bundled seed images or processed uploads.
+// Only images we host ourselves: bundled seed images or uploads stored in GridFS.
 const LOCAL_IMAGE_PATTERN =
-  /^\/(?:images\/[a-z0-9/_-]+\.(?:jpe?g|png|webp)|media\/[a-f0-9-]{36}\.webp)$/i;
+  /^\/(?:images\/[a-z0-9/_-]+\.(?:jpe?g|png|webp)|api\/images\/[a-f0-9]{24})$/i;
 
 export const imageUrlSchema = z
   .string()

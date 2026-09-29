@@ -18,9 +18,24 @@ export type AdminUserDoc = {
 /** `settings` collection: a single document with `_id: "site"`. */
 export type SettingsDoc = WebsiteSettings & { _id: "site" };
 
-/** `hero_images` and `menu_items`: `_id` is the item's UUID. */
-export type HeroImageDoc = Omit<HeroImage, "id"> & { _id: string };
-export type MenuItemDoc = Omit<MenuItem, "id"> & { _id: string };
+/**
+ * `hero_images`: `_id` is the item's UUID. `fileId` points at the GridFS
+ * file (null for bundled seed photos under /images); `imageUrl` is the
+ * public URL derived from it.
+ */
+export type HeroImageDoc = Omit<HeroImage, "id"> & {
+  _id: string;
+  section: "hero";
+  fileId?: ObjectId | null;
+  filename?: string;
+  contentType?: string;
+};
+
+/** `menu_items`: `_id` is the item's UUID; `imageFileId` points at the GridFS file. */
+export type MenuItemDoc = Omit<MenuItem, "id"> & {
+  _id: string;
+  imageFileId?: ObjectId | null;
+};
 
 /** `app_config`: internal values such as the generated session key and the seed marker. */
 export type AppConfigDoc = { _id: string; value?: string; createdAt: Date };

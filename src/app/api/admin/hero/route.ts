@@ -2,7 +2,6 @@ import { NextResponse, type NextRequest } from "next/server";
 import { guardAdminApi } from "@/lib/auth/guard";
 import { firstIssue, heroImagesInputSchema } from "@/lib/content/schema";
 import { saveHeroImages } from "@/lib/content/store";
-import { pruneUnusedMedia } from "@/lib/media";
 import { revalidatePublicPages } from "@/lib/revalidate";
 
 export async function PUT(request: NextRequest) {
@@ -17,6 +16,5 @@ export async function PUT(request: NextRequest) {
 
   const images = await saveHeroImages(parsed.data);
   revalidatePublicPages();
-  await pruneUnusedMedia();
   return NextResponse.json({ images });
 }

@@ -18,7 +18,7 @@ import {
 const NAV = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
   { href: "/admin/settings", label: "Website Settings", icon: Settings },
-  { href: "/admin/hero", label: "Hero Images", icon: Images },
+  { href: "/admin/images", label: "Hero Images", icon: Images },
   { href: "/admin/menu", label: "Menu", icon: UtensilsCrossed },
   { href: "/admin/users", label: "Users", icon: Users },
 ];

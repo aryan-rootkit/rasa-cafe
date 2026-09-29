@@ -238,7 +238,7 @@ function MenuItemDialog({
     setUploading(true);
     setError(null);
     try {
-      set("imageUrl", await uploadImage(file));
+      set("imageUrl", await uploadImage(file, "menu"));
     } catch (err) {
       setError((err as Error).message);
     } finally {

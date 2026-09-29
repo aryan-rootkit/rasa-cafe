@@ -2,7 +2,6 @@ import { NextResponse, type NextRequest } from "next/server";
 import { guardAdminApi } from "@/lib/auth/guard";
 import { firstIssue, menuItemInputSchema } from "@/lib/content/schema";
 import { deleteMenuItem, updateMenuItem } from "@/lib/content/store";
-import { pruneUnusedMedia } from "@/lib/media";
 import { revalidatePublicPages } from "@/lib/revalidate";
 
 export async function PUT(
@@ -25,7 +24,6 @@ export async function PUT(
     return NextResponse.json({ error: "Menu item not found." }, { status: 404 });
   }
   revalidatePublicPages();
-  await pruneUnusedMedia();
   return NextResponse.json({ item });
 }
 
@@ -41,6 +39,5 @@ export async function DELETE(
     return NextResponse.json({ error: "Menu item not found." }, { status: 404 });
   }
   revalidatePublicPages();
-  await pruneUnusedMedia();
   return NextResponse.json({ ok: true });
 }

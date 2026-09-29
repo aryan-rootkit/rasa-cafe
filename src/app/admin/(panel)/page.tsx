@@ -23,7 +23,7 @@ export default async function AdminDashboardPage() {
       detail: `Last updated ${dateFormat.format(new Date(settings.updatedAt))}`,
     },
     {
-      href: "/admin/hero",
+      href: "/admin/images",
       icon: Images,
       title: "Hero Images",
       stat: `${activeHero} / ${HERO_IMAGE_LIMIT} showing`,

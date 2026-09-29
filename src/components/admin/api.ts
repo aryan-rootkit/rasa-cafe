@@ -48,13 +48,15 @@ async function shrinkImage(file: File): Promise<File> {
   throw new Error("That image is too large. Try a smaller photo.");
 }
 
-export async function uploadImage(original: File): Promise<string> {
+/** Uploads to GridFS and returns the image URL to save on a hero slot or menu item. */
+export async function uploadImage(original: File, section: "hero" | "menu"): Promise<string> {
   const problem = checkUploadFile(original, MAX_SOURCE_BYTES);
   if (problem) throw new Error(problem);
   const file = await shrinkImage(original);
   const form = new FormData();
   form.append("file", file);
-  const { url } = await adminRequest<{ url: string }>("/api/admin/upload", {
+  form.append("section", section);
+  const { url } = await adminRequest<{ url: string }>("/api/admin/images", {
     method: "POST",
     body: form,
   });

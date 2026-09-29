@@ -2,11 +2,14 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   images: {
-    // Only bundled seed images and processed admin uploads may be optimised.
+    // Only bundled seed images and admin uploads (served from GridFS) may be optimised.
     localPatterns: [
       { pathname: "/images/**", search: "" },
-      { pathname: "/media/**", search: "" },
+      { pathname: "/api/images/**", search: "" },
     ],
+  },
+  async redirects() {
+    return [{ source: "/admin/hero", destination: "/admin/images", permanent: true }];
   },
 };
 

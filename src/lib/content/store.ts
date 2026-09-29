@@ -9,6 +9,7 @@ import {
   type MenuItemDoc,
 } from "@/lib/db/collections";
 import { databaseConfigured } from "@/lib/db/mongodb";
+import { fileIdFromUrl, getImageFileInfo, pruneUnusedImages } from "@/lib/images";
 import { createDefaultContent } from "./defaults";
 import {
   HERO_IMAGE_LIMIT,
@@ -28,8 +29,64 @@ import {
  * Without MONGODB_URI (e.g. a fresh clone) reads return the seed content.
  */
 
-const toHero = ({ _id, ...rest }: WithId<HeroImageDoc>): HeroImage => ({ id: _id, ...rest });
-const toMenuItem = ({ _id, ...rest }: WithId<MenuItemDoc>): MenuItem => ({ id: _id, ...rest });
+const toHero = (d: WithId<HeroImageDoc>): HeroImage => ({
+  id: d._id,
+  imageUrl: d.imageUrl,
+  altText: d.altText,
+  position: d.position,
+  isActive: d.isActive,
+  createdAt: d.createdAt,
+  updatedAt: d.updatedAt,
+});
+const toMenuItem = (d: WithId<MenuItemDoc>): MenuItem => ({
+  id: d._id,
+  name: d.name,
+  description: d.description,
+  category: d.category,
+  price: d.price,
+  imageUrl: d.imageUrl,
+  isVisible: d.isVisible,
+  isFeatured: d.isFeatured,
+  position: d.position,
+  createdAt: d.createdAt,
+  updatedAt: d.updatedAt,
+});
+
+const toFileId = (url: string) => {
+  const id = fileIdFromUrl(url);
+  return id ? new ObjectId(id) : null;
+};
+
+function toHeroDoc(
+  { id, ...image }: HeroImage,
+  info?: { filename: string; contentType: string }
+): HeroImageDoc {
+  const filename = info?.filename ?? image.imageUrl.split("/").pop() ?? "";
+  return {
+    _id: id,
+    ...image,
+    section: "hero",
+    fileId: toFileId(image.imageUrl),
+    filename,
+    contentType:
+      info?.contentType ?? (/\.png$/i.test(filename) ? "image/png" : filename.endsWith(".webp") ? "image/webp" : "image/jpeg"),
+  };
+}
+
+const toMenuDoc = ({ id, ...item }: MenuItem): MenuItemDoc => ({
+  _id: id,
+  ...item,
+  imageFileId: toFileId(item.imageUrl),
+});
+
+/** Deletes GridFS files that are no longer used; never fails the save that triggered it. */
+async function cleanUpImages(replaced: string[]) {
+  try {
+    await pruneUnusedImages(await getReferencedImageIds(), replaced);
+  } catch (error) {
+    console.error("Image clean-up failed", error);
+  }
+}
 const toAdminUser = (doc: AdminUserDoc): AdminUser => ({
   id: doc._id.toHexString(),
   username: doc.username,
@@ -55,8 +112,8 @@ async function db() {
     const seed = createDefaultContent();
     await Promise.all([
       c.settings.insertOne({ _id: "site", ...seed.settings }),
-      c.heroImages.insertMany(seed.heroImages.map(({ id, ...rest }) => ({ _id: id, ...rest }))),
-      c.menuItems.insertMany(seed.menuItems.map(({ id, ...rest }) => ({ _id: id, ...rest }))),
+      c.heroImages.insertMany(seed.heroImages.map((img) => toHeroDoc(img))),
+      c.menuItems.insertMany(seed.menuItems.map(toMenuDoc)),
     ]);
   })().catch((error) => {
     seeded = undefined;
@@ -144,12 +201,26 @@ export async function saveHeroImages(input: HeroImageInput[]): Promise<HeroImage
     };
   });
 
+  const fileInfo = await getImageFileInfo(
+    images.map((img) => fileIdFromUrl(img.imageUrl)).filter((id): id is string => Boolean(id))
+  );
   await c.heroImages.bulkWrite([
     { deleteMany: { filter: { _id: { $nin: images.map((img) => img.id) } } } },
-    ...images.map(({ id, ...rest }) => ({
-      replaceOne: { filter: { _id: id }, replacement: rest, upsert: true },
-    })),
+    ...images.map((img) => {
+      const { _id, ...replacement } = toHeroDoc(
+        img,
+        fileInfo.get(fileIdFromUrl(img.imageUrl) ?? "")
+      );
+      return { replaceOne: { filter: { _id }, replacement, upsert: true } };
+    }),
   ]);
+
+  const kept = new Set(images.map((img) => img.imageUrl));
+  const removed = [...existing.values()]
+    .filter((doc) => !kept.has(doc.imageUrl))
+    .map((doc) => fileIdFromUrl(doc.imageUrl))
+    .filter((id): id is string => Boolean(id));
+  await cleanUpImages(removed);
   return images;
 }
 
@@ -172,22 +243,35 @@ export async function createMenuItem(input: MenuItemInput): Promise<MenuItem> {
     createdAt: now,
     updatedAt: now,
   };
-  const { id, ...doc } = item;
-  await c.menuItems.insertOne({ _id: id, ...doc });
+  await c.menuItems.insertOne(toMenuDoc(item));
   return item;
 }
 
 export async function updateMenuItem(id: string, input: MenuItemInput): Promise<MenuItem | null> {
-  const doc = await (await db()).menuItems.findOneAndUpdate(
+  const before = await (await db()).menuItems.findOneAndUpdate(
     { _id: id },
-    { $set: { ...input, updatedAt: new Date().toISOString() } },
-    { returnDocument: "after" }
+    {
+      $set: {
+        ...input,
+        imageFileId: toFileId(input.imageUrl),
+        updatedAt: new Date().toISOString(),
+      },
+    },
+    { returnDocument: "before" }
   );
-  return doc ? toMenuItem(doc) : null;
+  if (!before) return null;
+
+  const oldFile = fileIdFromUrl(before.imageUrl);
+  if (oldFile && before.imageUrl !== input.imageUrl) await cleanUpImages([oldFile]);
+  return toMenuItem({ ...before, ...input, updatedAt: new Date().toISOString() });
 }
 
 export async function deleteMenuItem(id: string): Promise<boolean> {
-  return (await (await db()).menuItems.deleteOne({ _id: id })).deletedCount > 0;
+  const doc = await (await db()).menuItems.findOneAndDelete({ _id: id });
+  if (!doc) return false;
+  const oldFile = fileIdFromUrl(doc.imageUrl);
+  await cleanUpImages(oldFile ? [oldFile] : []);
+  return true;
 }
 
 export async function findAdminUserByUsername(username: string): Promise<AdminUser | null> {
@@ -244,12 +328,14 @@ export async function deleteAdminUser(id: string): Promise<boolean> {
   return result.deletedCount > 0;
 }
 
-/** Every uploaded media URL currently referenced by saved content. */
-export async function getReferencedMedia(): Promise<Set<string>> {
+/** GridFS file ids currently referenced by saved hero images and menu items. */
+export async function getReferencedImageIds(): Promise<Set<string>> {
   const c = await db();
   const [hero, menu] = await Promise.all([
     c.heroImages.distinct("imageUrl"),
     c.menuItems.distinct("imageUrl"),
   ]);
-  return new Set([...hero, ...menu].filter((url) => url.startsWith("/media/")));
+  return new Set(
+    [...hero, ...menu].map(fileIdFromUrl).filter((id): id is string => Boolean(id))
+  );
 }
