@@ -1,5 +1,6 @@
 import type {
   ContentDatabase,
+  Favourite,
   HeroImage,
   MenuCategoryId,
   MenuItem,
@@ -122,6 +123,29 @@ const menuItems: MenuItem[] = menuSeed.map((item, i) => ({
   updatedAt: SEED_DATE,
 }));
 
+/**
+ * Favourites used to be the visible, featured menu items with a photo; those
+ * items start the admin-managed Favourites list.
+ */
+export function favouritesFromMenu(items: MenuItem[], newId: (index: number) => string): Favourite[] {
+  return items
+    .filter((item) => item.isVisible && item.isFeatured && item.imageUrl)
+    .map((item, position) => ({
+      id: newId(position),
+      name: item.name,
+      description: item.description,
+      imageUrl: item.imageUrl,
+      position,
+      createdAt: item.createdAt,
+      updatedAt: item.updatedAt,
+    }));
+}
+
+const favourites = favouritesFromMenu(
+  menuItems,
+  (i) => `20000000-0000-4000-8000-${String(i + 1).padStart(12, "0")}`
+);
+
 export function createDefaultContent(): ContentDatabase {
   return structuredClone({
     version: 1,
@@ -138,5 +162,7 @@ export function createDefaultContent(): ContentDatabase {
     },
     heroImages,
     menuItems,
+    favourites,
+    storyImages: [],
   });
 }

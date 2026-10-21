@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo, useRef, useState, type FormEvent } from "react";
 import Image from "next/image";
-import { ImageIcon, Loader2, Pencil, Plus, Star, Trash2, Upload, X } from "lucide-react";
+import { ImageIcon, Loader2, Pencil, Plus, Trash2, Upload, X } from "lucide-react";
 import {
   MENU_CATEGORIES,
   menuItemInputSchema,
@@ -59,7 +59,7 @@ export default function MenuManager({ initial }: { initial: MenuItem[] }) {
     return item;
   }
 
-  async function quickToggle(item: MenuItem, key: "isVisible" | "isFeatured") {
+  async function quickToggle(item: MenuItem, key: "isVisible") {
     setPendingId(item.id);
     try {
       await saveItem(item.id, { ...toInput(item), [key]: !item[key] });
@@ -144,19 +144,6 @@ export default function MenuManager({ initial }: { initial: MenuItem[] }) {
                   </div>
                   <div className="flex items-center gap-2">
                     {pendingId === item.id && <Loader2 size={16} className="animate-spin text-stone-400" />}
-                    <button
-                      type="button"
-                      onClick={() => quickToggle(item, "isFeatured")}
-                      disabled={pendingId === item.id}
-                      title={item.isFeatured ? "Remove from favourites" : "Feature as a favourite"}
-                      aria-label={item.isFeatured ? "Remove from favourites" : "Feature as a favourite"}
-                      aria-pressed={item.isFeatured}
-                      className={`rounded-md p-2 transition-colors hover:bg-stone-100 ${
-                        item.isFeatured ? "text-amber-500" : "text-stone-300"
-                      }`}
-                    >
-                      <Star size={16} fill={item.isFeatured ? "currentColor" : "none"} />
-                    </button>
                     <label className="flex cursor-pointer items-center gap-2 text-sm text-stone-600">
                       <input
                         type="checkbox"
@@ -391,15 +378,6 @@ function MenuItemDialog({
                 className="h-4 w-4 accent-stone-900"
               />
               Visible on the website
-            </label>
-            <label className="flex cursor-pointer items-center gap-3">
-              <input
-                type="checkbox"
-                checked={values.isFeatured}
-                onChange={(e) => set("isFeatured", e.target.checked)}
-                className="h-4 w-4 accent-stone-900"
-              />
-              Show in “The RASA favourites” (needs a photo)
             </label>
           </div>
 

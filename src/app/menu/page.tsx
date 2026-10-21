@@ -23,7 +23,7 @@ export default async function MenuPage() {
 
   return (
     <main className="grain relative overflow-x-clip">
-      <Navbar mapsUrl={settings.mapsUrl} instagramUrl={settings.instagramUrl} />
+      <Navbar instagramUrl={settings.instagramUrl} />
       <section className="section-pad pt-36 pb-24 md:pt-44 md:pb-36">
         <div className="mx-auto max-w-7xl">
           <Link

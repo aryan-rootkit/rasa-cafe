@@ -1,5 +1,3 @@
-import type { OrderOfTheDay } from "./types";
-
 /** Brand copy. Contact details, hero images and the menu live in the admin-managed content store. */
 export const brand = {
   name: "RASA",
@@ -10,16 +8,8 @@ export const brand = {
     "RASA is a café built around good food, thoughtful coffee and the simple pleasure of spending time together.",
 };
 
-/** Featured special — swap this object to change Order of the Day */
-export const orderOfTheDay: OrderOfTheDay = {
-  id: "rasa-special-latte",
-  eyebrow: "Order of the day",
-  name: "RASA Special Latte",
-  notes: ["Espresso", "Vanilla", "Cinnamon", "Cold Foam"],
-  price: 220,
-  image: "/images/products/special-latte.jpg",
-  dateLabel: "Today",
-};
+/** RASA's official Google Maps listing, opened by the "Get Directions" buttons. */
+export const directionsUrl = "https://share.google/0cMIZgnrtY0MILf4u";
 
 export const formatPrice = (price: number) => `₹${price}`;
 

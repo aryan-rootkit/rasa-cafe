@@ -110,6 +110,48 @@ export type MenuItem = MenuItemInput & {
   updatedAt: string;
 };
 
+export const favouriteInputSchema = z.object({
+  name: z.string().trim().min(2, "Name is required.").max(80),
+  description: z.string().trim().max(200),
+  imageUrl: imageUrlSchema,
+});
+
+export type FavouriteInput = z.infer<typeof favouriteInputSchema>;
+
+export type Favourite = FavouriteInput & {
+  id: string;
+  position: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export const favouriteOrderSchema = z
+  .array(z.string().uuid())
+  .min(1, "Nothing to reorder.")
+  .refine((ids) => new Set(ids).size === ids.length, "Each favourite can appear only once.");
+
+export const storyImageInputSchema = z.object({
+  id: z.string().uuid().optional(),
+  imageUrl: imageUrlSchema,
+  altText: z.string().trim().max(160),
+});
+
+export const storyImagesInputSchema = z.array(storyImageInputSchema);
+
+export type StoryImageInput = z.infer<typeof storyImageInputSchema>;
+
+export type StoryImage = {
+  id: string;
+  imageUrl: string;
+  altText: string;
+  /** Pixel size of the stored file, so the gallery can keep each photo's shape. */
+  width: number | null;
+  height: number | null;
+  position: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export const signupInputSchema = z.object({
   username: z
     .string()
@@ -145,6 +187,8 @@ export type SiteContent = {
   settings: WebsiteSettings;
   heroImages: HeroImage[];
   menuItems: MenuItem[];
+  favourites: Favourite[];
+  storyImages: StoryImage[];
 };
 
 /** Seed content shape (see defaults.ts). */

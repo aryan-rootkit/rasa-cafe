@@ -7,8 +7,8 @@ export default async function AdminMenuPage() {
     <div>
       <h1 className="text-2xl font-semibold">Menu</h1>
       <p className="mt-1 text-sm text-stone-500">
-        Prices are shown for information only. Mark items as a favourite (with a
-        photo) to feature them in “The RASA favourites”.
+        Prices are shown for information only. The homepage favourites are managed
+        under RASA Favourites.
       </p>
       <MenuManager initial={items} />
     </div>

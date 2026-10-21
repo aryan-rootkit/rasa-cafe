@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, Images, Settings, UtensilsCrossed } from "lucide-react";
+import { ArrowRight, BookOpen, Heart, Images, Settings, UtensilsCrossed } from "lucide-react";
 import { getContent } from "@/lib/content/store";
 import { HERO_IMAGE_LIMIT } from "@/lib/content/schema";
 
@@ -10,7 +10,7 @@ const dateFormat = new Intl.DateTimeFormat("en-IN", {
 });
 
 export default async function AdminDashboardPage() {
-  const { settings, heroImages, menuItems } = await getContent();
+  const { settings, heroImages, menuItems, favourites, storyImages } = await getContent();
   const activeHero = heroImages.filter((i) => i.isActive).length;
   const visibleItems = menuItems.filter((i) => i.isVisible).length;
 
@@ -25,7 +25,7 @@ export default async function AdminDashboardPage() {
     {
       href: "/admin/images",
       icon: Images,
-      title: "Hero Images",
+      title: "Hero Gallery",
       stat: `${activeHero} / ${HERO_IMAGE_LIMIT} showing`,
       detail:
         activeHero < HERO_IMAGE_LIMIT
@@ -33,13 +33,25 @@ export default async function AdminDashboardPage() {
           : "Gallery is complete",
     },
     {
+      href: "/admin/favourites",
+      icon: Heart,
+      title: "RASA Favourites",
+      stat: `${favourites.length} ${favourites.length === 1 ? "favourite" : "favourites"}`,
+      detail: favourites.length ? "Shown on the homepage" : "Section hidden until you add one",
+    },
+    {
+      href: "/admin/story",
+      icon: BookOpen,
+      title: "Our Story Gallery",
+      stat: `${storyImages.length} ${storyImages.length === 1 ? "photo" : "photos"}`,
+      detail: storyImages.length ? "Scrolling café gallery" : "Showing the default café photo",
+    },
+    {
       href: "/admin/menu",
       icon: UtensilsCrossed,
       title: "Menu",
       stat: `${visibleItems} visible items`,
-      detail: `${menuItems.length - visibleItems} hidden · ${
-        menuItems.filter((i) => i.isFeatured && i.isVisible).length
-      } favourites`,
+      detail: `${menuItems.length - visibleItems} hidden`,
     },
   ];
 

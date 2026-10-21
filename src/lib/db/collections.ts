@@ -1,7 +1,13 @@
 import "server-only";
 
 import type { ObjectId } from "mongodb";
-import type { HeroImage, MenuItem, WebsiteSettings } from "@/lib/content/schema";
+import type {
+  Favourite,
+  HeroImage,
+  MenuItem,
+  StoryImage,
+  WebsiteSettings,
+} from "@/lib/content/schema";
 import { getDb } from "./mongodb";
 
 /** `admin_users` collection. Usernames are stored lowercase and are unique. */
@@ -37,7 +43,19 @@ export type MenuItemDoc = Omit<MenuItem, "id"> & {
   imageFileId?: ObjectId | null;
 };
 
-/** `app_config`: internal values such as the generated session key and the seed marker. */
+/** `favourites`: "The RASA favourites" on the homepage. `_id` is the UUID; `imageFileId` points at the GridFS file. */
+export type FavouriteDoc = Omit<Favourite, "id"> & {
+  _id: string;
+  imageFileId?: ObjectId | null;
+};
+
+/** `story_images`: the Our Story gallery. `_id` is the UUID; `fileId` points at the GridFS file. */
+export type StoryImageDoc = Omit<StoryImage, "id"> & {
+  _id: string;
+  fileId?: ObjectId | null;
+};
+
+/** `app_config`: internal values such as the generated session key and the seed/migration markers. */
 export type AppConfigDoc = { _id: string; value?: string; createdAt: Date };
 
 let indexesReady: Promise<unknown> | undefined;
@@ -49,6 +67,8 @@ export async function collections() {
     settings: db.collection<SettingsDoc>("settings"),
     heroImages: db.collection<HeroImageDoc>("hero_images"),
     menuItems: db.collection<MenuItemDoc>("menu_items"),
+    favourites: db.collection<FavouriteDoc>("favourites"),
+    storyImages: db.collection<StoryImageDoc>("story_images"),
     appConfig: db.collection<AppConfigDoc>("app_config"),
   };
 
@@ -56,6 +76,8 @@ export async function collections() {
     c.adminUsers.createIndex({ username: 1 }, { unique: true }),
     c.heroImages.createIndex({ position: 1 }),
     c.menuItems.createIndex({ position: 1 }),
+    c.favourites.createIndex({ position: 1 }),
+    c.storyImages.createIndex({ position: 1 }),
   ]).catch((error) => {
     indexesReady = undefined;
     throw error;

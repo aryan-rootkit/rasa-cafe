@@ -42,22 +42,25 @@ Accounts are stored in the MongoDB `admin_users` collection (`username`, `passwo
 ## What the admin can manage
 
 - **Website Settings** — Instagram, Google Maps link, email, two phone numbers, address, opening hours
-- **Hero Images** (`/admin/images`) — the 10-image moving gallery: upload, replace, delete, reorder (drag or arrows), alt text, show/hide
-- **Menu** — add, edit, delete, photo, category, price, visibility, and "favourite" (featured items with a photo appear in *The RASA favourites*)
+- **Hero Gallery** (`/admin/images`) — the 10-image moving gallery: upload, replace, delete, reorder (drag or arrows), alt text, show/hide
+- **RASA Favourites** (`/admin/favourites`) — the cards in *The RASA favourites*: add, edit (photo, name, description, with a live preview), delete, reorder (drag or arrows, saved immediately). No limit on how many; prices are never shown in this section
+- **Our Story Gallery** (`/admin/story`) — the scrolling café photos in *Our Story*: upload (several at once), preview before publishing, replace, delete, reorder, optional alt text. No limit on how many; with no photos the section shows the original café photo
+- **Menu** — add, edit, delete, photo, category, price, visibility
 - **Users** — see everyone who can sign in and remove accounts
 
 Saving in the admin revalidates `/` and `/menu`, so changes appear on the next page load.
 
 ## Content and storage
 
-- **MongoDB** holds all data: `admin_users`, `settings`, `hero_images`, `menu_items` and `app_config`. `src/lib/content/store.ts` is the only module that reads or writes it; the cached connection lives in `src/lib/db/mongodb.ts`.
+- **MongoDB** holds all data: `admin_users`, `settings`, `hero_images`, `menu_items`, `favourites`, `story_images` and `app_config`. `src/lib/content/store.ts` is the only module that reads or writes it; the cached connection lives in `src/lib/db/mongodb.ts`.
 - On first run an empty database is filled with the seed content from `src/lib/content/defaults.ts`. Without `MONGODB_URI` the public site renders that seed content read-only.
+- One-off migrations run automatically on the first request after a deploy, once per database (markers in `app_config`). `migration:favourites-v1` copies the visible featured menu items into `favourites`, so the existing favourites stay; menu items, prices and the old `isFeatured` flag are left untouched.
 - Menu categories are fixed in `src/lib/content/categories.ts`.
-- **Uploaded images** are stored in MongoDB **GridFS** (`fs.files` + `fs.chunks`) by `src/lib/images.ts`. Hero and menu documents keep the GridFS file id (`fileId` / `imageFileId`) plus the public URL `/api/images/<id>`.
+- **Uploaded images** are stored in MongoDB **GridFS** (`fs.files` + `fs.chunks`) by `src/lib/images.ts`. Hero, menu, favourite and story documents keep the GridFS file id (`fileId` / `imageFileId`) plus the public URL `/api/images/<id>`; story photos also store their pixel size so the gallery can keep each photo's shape.
 - `POST /api/admin/images` (admins only) validates the actual bytes (JPG, PNG or WebP only, max 4 MB), strips metadata, resizes to at most 2400px and re-encodes as WebP. Photos over 4 MB are shrunk in the browser first, because Vercel rejects larger requests.
-- `GET /api/images/<id>` streams the file from GridFS with long-lived immutable caching; pages render it through `next/image`, which serves resized versions. Replacing or deleting an image (or a menu item) deletes the old GridFS file; uploads never saved are removed after an hour.
+- `GET /api/images/<id>` streams the file from GridFS with long-lived immutable caching; pages render it through `next/image`, which serves resized versions. Replacing or deleting an image (or a menu item or favourite) deletes the old GridFS file once nothing else references it; uploads never saved are removed after an hour.
 - The bundled default photos in `public/images` are served as static files until replaced from the admin.
-- Brand copy (tagline, intro, Order of the Day) lives in `src/data/site.ts`.
+- Brand copy (tagline, intro) and the official Google Maps link used by the **Get Directions** buttons live in `src/data/site.ts`.
 
 ### Deploying on Vercel
 

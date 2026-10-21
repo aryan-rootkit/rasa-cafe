@@ -4,7 +4,9 @@ import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
+  BookOpen,
   ExternalLink,
+  Heart,
   Images,
   LayoutDashboard,
   LogOut,
@@ -18,7 +20,9 @@ import {
 const NAV = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
   { href: "/admin/settings", label: "Website Settings", icon: Settings },
-  { href: "/admin/images", label: "Hero Images", icon: Images },
+  { href: "/admin/images", label: "Hero Gallery", icon: Images },
+  { href: "/admin/favourites", label: "RASA Favourites", icon: Heart },
+  { href: "/admin/story", label: "Our Story Gallery", icon: BookOpen },
   { href: "/admin/menu", label: "Menu", icon: UtensilsCrossed },
   { href: "/admin/users", label: "Users", icon: Users },
 ];

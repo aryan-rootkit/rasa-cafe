@@ -48,8 +48,11 @@ async function shrinkImage(file: File): Promise<File> {
   throw new Error("That image is too large. Try a smaller photo.");
 }
 
-/** Uploads to GridFS and returns the image URL to save on a hero slot or menu item. */
-export async function uploadImage(original: File, section: "hero" | "menu"): Promise<string> {
+/** Uploads to GridFS and returns the image URL to save on a hero slot, menu item, favourite or story photo. */
+export async function uploadImage(
+  original: File,
+  section: "hero" | "menu" | "favourite" | "story"
+): Promise<string> {
   const problem = checkUploadFile(original, MAX_SOURCE_BYTES);
   if (problem) throw new Error(problem);
   const file = await shrinkImage(original);

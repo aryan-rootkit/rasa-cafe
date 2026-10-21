@@ -2,13 +2,11 @@
 
 import Image from "next/image";
 import { motion } from "framer-motion";
-import { formatPrice } from "@/data/site";
 import { cn } from "@/lib/cn";
 
 export type ProductCardItem = {
   name: string;
   description: string;
-  price: number;
   imageUrl: string;
 };
 
@@ -50,20 +48,15 @@ export default function ProductCard({
         />
       </div>
 
-      <div className="mt-5 flex items-start justify-between gap-4">
-        <div>
-          <h3 className="font-serif text-2xl tracking-tight text-ink transition-transform duration-300 group-hover:translate-x-1 md:text-[1.65rem]">
-            {item.name}
-          </h3>
-          {item.description && (
-            <p className="mt-1.5 max-w-xs text-sm leading-relaxed text-muted">
-              {item.description}
-            </p>
-          )}
-        </div>
-        <p className="shrink-0 pt-1.5 text-sm tracking-wide text-ink">
-          {formatPrice(item.price)}
-        </p>
+      <div className="mt-5">
+        <h3 className="font-serif text-2xl tracking-tight text-ink transition-transform duration-300 group-hover:translate-x-1 md:text-[1.65rem]">
+          {item.name}
+        </h3>
+        {item.description && (
+          <p className="mt-1.5 max-w-xs text-sm leading-relaxed text-muted">
+            {item.description}
+          </p>
+        )}
       </div>
     </motion.article>
   );

@@ -3,6 +3,7 @@
 import { ArrowRight, ArrowUpRight, Mail, MapPin, Phone } from "lucide-react";
 import InstagramIcon from "@/components/InstagramIcon";
 import Reveal from "@/components/Reveal";
+import { directionsUrl } from "@/data/site";
 import { formatPhone, instagramHandle, telHref } from "@/lib/contact";
 import type { WebsiteSettings } from "@/lib/content/schema";
 
@@ -77,7 +78,7 @@ export default function VisitSection({ settings }: { settings: WebsiteSettings }
             </div>
 
             <a
-              href={mapsUrl}
+              href={directionsUrl}
               target="_blank"
               rel="noopener noreferrer"
               className="group inline-flex min-h-11 items-center gap-2 text-[13px] tracking-[0.14em] text-ink uppercase transition-opacity hover:opacity-70"
