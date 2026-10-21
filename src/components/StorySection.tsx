@@ -24,7 +24,7 @@ export default function StorySection({ images }: { images: StoryGalleryImage[] }
         </div>
       )}
 
-      <div className="section-pad bg-cream py-20 md:py-28">
+      <div className="section-pad bg-cream py-14 md:py-20">
         <div className="mx-auto max-w-7xl">
           <Reveal>
             <h2 className="max-w-2xl font-serif text-[clamp(2.5rem,6vw,4.5rem)] leading-[1.05] tracking-tight text-ink">

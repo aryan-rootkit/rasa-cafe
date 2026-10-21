@@ -61,7 +61,7 @@ export default async function MenuPage() {
           </div>
         </div>
       </section>
-      <Footer settings={settings} />
+      <Footer />
     </main>
   );
 }

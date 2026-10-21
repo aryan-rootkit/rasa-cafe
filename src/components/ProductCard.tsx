@@ -2,7 +2,6 @@
 
 import Image from "next/image";
 import { motion } from "framer-motion";
-import { cn } from "@/lib/cn";
 
 export type ProductCardItem = {
   name: string;
@@ -13,13 +12,11 @@ export type ProductCardItem = {
 type ProductCardProps = {
   item: ProductCardItem;
   index?: number;
-  layout?: "tall" | "wide";
 };
 
 export default function ProductCard({
   item,
   index = 0,
-  layout = "tall",
 }: ProductCardProps) {
   return (
     <motion.article
@@ -33,12 +30,8 @@ export default function ProductCard({
       }}
       className="group relative"
     >
-      <div
-        className={cn(
-          "relative overflow-hidden bg-cream-deep",
-          layout === "tall" ? "aspect-[4/5]" : "aspect-[5/4]"
-        )}
-      >
+      {/* Every card shares one shape so the grid stays even. */}
+      <div className="relative aspect-[4/5] overflow-hidden bg-cream-deep">
         <Image
           src={item.imageUrl}
           alt={item.name}

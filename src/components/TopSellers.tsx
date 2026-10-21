@@ -11,7 +11,7 @@ export default function TopSellers({
   if (items.length === 0) return null;
 
   return (
-    <section id="favourites" className="section-pad pb-24 md:pb-36">
+    <section id="favourites" className="section-pad pb-16 md:pb-24">
       <div className="mx-auto max-w-7xl">
         <Reveal>
           <p className="text-[11px] tracking-[0.22em] text-muted uppercase">
@@ -25,14 +25,9 @@ export default function TopSellers({
           </p>
         </Reveal>
 
-        <div className="mt-14 grid gap-10 sm:grid-cols-2 lg:grid-cols-3 lg:gap-x-8 lg:gap-y-16">
+        <div className="mt-10 grid gap-10 sm:grid-cols-2 lg:grid-cols-3 lg:gap-x-8 lg:gap-y-12">
           {items.map((item, index) => (
-            <ProductCard
-              key={item.id}
-              item={item}
-              index={index}
-              layout={index % 5 === 2 ? "wide" : "tall"}
-            />
+            <ProductCard key={item.id} item={item} index={index} />
           ))}
         </div>
       </div>

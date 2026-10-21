@@ -27,7 +27,7 @@ export default function MenuPreview({ items }: { items: PreviewItem[] }) {
   if (!category) return null;
 
   return (
-    <section id="menu" className="section-pad py-24 md:py-36">
+    <section id="menu" className="section-pad py-16 md:py-24">
       <div className="mx-auto max-w-7xl">
         <Reveal>
           <p className="text-[11px] tracking-[0.22em] text-muted uppercase">
