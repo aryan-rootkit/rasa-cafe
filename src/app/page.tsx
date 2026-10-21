@@ -52,7 +52,7 @@ export default async function Home() {
       <MenuPreview items={visibleItems} />
       <StorySection images={story} />
       <VisitSection settings={settings} />
-      <Footer settings={settings} />
+      <Footer />
     </main>
   );
 }

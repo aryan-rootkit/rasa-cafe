@@ -7,8 +7,8 @@ import Reveal from "@/components/Reveal";
 
 export default function IntroSection() {
   return (
-    <section className="section-pad relative py-24 md:py-36">
-      <div className="mx-auto grid max-w-7xl gap-12 border-t border-line pt-16 md:grid-cols-12 md:gap-8 md:pt-24">
+    <section className="section-pad relative py-16 md:py-24">
+      <div className="mx-auto grid max-w-7xl gap-12 border-t border-line pt-12 md:grid-cols-12 md:gap-8 md:pt-16">
         <Reveal className="md:col-span-7">
           <h2 className="font-serif text-[clamp(2.5rem,6vw,4.75rem)] leading-[1.05] tracking-tight text-ink">
             A little place with
