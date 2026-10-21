@@ -5,15 +5,19 @@ import { MongoServerError, ObjectId, type WithId } from "mongodb";
 import {
   collections,
   type AdminUserDoc,
+  type FavouriteDoc,
   type HeroImageDoc,
   type MenuItemDoc,
+  type StoryImageDoc,
 } from "@/lib/db/collections";
 import { databaseConfigured } from "@/lib/db/mongodb";
 import { fileIdFromUrl, getImageFileInfo, pruneUnusedImages } from "@/lib/images";
-import { createDefaultContent } from "./defaults";
+import { createDefaultContent, favouritesFromMenu } from "./defaults";
 import {
   HERO_IMAGE_LIMIT,
   type AdminUser,
+  type Favourite,
+  type FavouriteInput,
   type HeroImage,
   type HeroImageInput,
   type MenuItem,
@@ -21,6 +25,8 @@ import {
   type PublicAdminUser,
   type SettingsInput,
   type SiteContent,
+  type StoryImage,
+  type StoryImageInput,
   type WebsiteSettings,
 } from "./schema";
 
@@ -47,6 +53,26 @@ const toMenuItem = (d: WithId<MenuItemDoc>): MenuItem => ({
   imageUrl: d.imageUrl,
   isVisible: d.isVisible,
   isFeatured: d.isFeatured,
+  position: d.position,
+  createdAt: d.createdAt,
+  updatedAt: d.updatedAt,
+});
+
+const toFavourite = (d: WithId<FavouriteDoc>): Favourite => ({
+  id: d._id,
+  name: d.name,
+  description: d.description,
+  imageUrl: d.imageUrl,
+  position: d.position,
+  createdAt: d.createdAt,
+  updatedAt: d.updatedAt,
+});
+const toStoryImage = (d: WithId<StoryImageDoc>): StoryImage => ({
+  id: d._id,
+  imageUrl: d.imageUrl,
+  altText: d.altText,
+  width: d.width ?? null,
+  height: d.height ?? null,
   position: d.position,
   createdAt: d.createdAt,
   updatedAt: d.updatedAt,
@@ -79,6 +105,18 @@ const toMenuDoc = ({ id, ...item }: MenuItem): MenuItemDoc => ({
   imageFileId: toFileId(item.imageUrl),
 });
 
+const toFavouriteDoc = ({ id, ...item }: Favourite): FavouriteDoc => ({
+  _id: id,
+  ...item,
+  imageFileId: toFileId(item.imageUrl),
+});
+
+const toStoryDoc = ({ id, ...image }: StoryImage): StoryImageDoc => ({
+  _id: id,
+  ...image,
+  fileId: toFileId(image.imageUrl),
+});
+
 /** Deletes GridFS files that are no longer used; never fails the save that triggered it. */
 async function cleanUpImages(replaced: string[]) {
   try {
@@ -98,6 +136,39 @@ const toAdminUser = (doc: AdminUserDoc): AdminUser => ({
 
 let seeded: Promise<void> | undefined;
 
+type Collections = Awaited<ReturnType<typeof collections>>;
+
+/**
+ * One-off, non-destructive data migrations, each run once across all
+ * instances (guarded by an `app_config` marker that is removed again if the
+ * migration fails, so it is retried).
+ */
+async function migrate(c: Collections) {
+  await runOnce(c, "migration:favourites-v1", async () => {
+    // Favourites used to be the featured menu items. Copy them into their own
+    // collection; the menu items (and their prices) are left untouched.
+    if (await c.favourites.countDocuments({}, { limit: 1 })) return;
+    const menu = await c.menuItems.find().sort({ position: 1 }).toArray();
+    const favourites = favouritesFromMenu(menu.map(toMenuItem), () => randomUUID());
+    if (favourites.length) await c.favourites.insertMany(favourites.map(toFavouriteDoc));
+  });
+}
+
+async function runOnce(c: Collections, id: string, run: () => Promise<void>) {
+  const marker = await c.appConfig.updateOne(
+    { _id: id },
+    { $setOnInsert: { createdAt: new Date() } },
+    { upsert: true }
+  );
+  if (!marker.upsertedCount) return;
+  try {
+    await run();
+  } catch (error) {
+    await c.appConfig.deleteOne({ _id: id }).catch(() => {});
+    throw error;
+  }
+}
+
 /** Fills an empty database with the seed content, exactly once across all instances. */
 async function db() {
   const c = await collections();
@@ -115,7 +186,9 @@ async function db() {
       c.heroImages.insertMany(seed.heroImages.map((img) => toHeroDoc(img))),
       c.menuItems.insertMany(seed.menuItems.map(toMenuDoc)),
     ]);
-  })().catch((error) => {
+  })()
+    .then(() => migrate(c))
+    .catch((error) => {
     seeded = undefined;
     throw error;
   });
@@ -142,16 +215,24 @@ export async function getStoredAuthSecret(): Promise<string> {
 
 export async function getContent(): Promise<SiteContent> {
   if (!databaseConfigured) {
-    const { settings, heroImages, menuItems } = createDefaultContent();
-    return { settings, heroImages, menuItems };
+    const { settings, heroImages, menuItems, favourites, storyImages } = createDefaultContent();
+    return { settings, heroImages, menuItems, favourites, storyImages };
   }
   const c = await db();
-  const [settings, heroImages, menuItems] = await Promise.all([
+  const [settings, heroImages, menuItems, favourites, storyImages] = await Promise.all([
     getSettings(),
     c.heroImages.find().sort({ position: 1 }).toArray(),
     c.menuItems.find().sort({ position: 1 }).toArray(),
+    c.favourites.find().sort({ position: 1 }).toArray(),
+    c.storyImages.find().sort({ position: 1 }).toArray(),
   ]);
-  return { settings, heroImages: heroImages.map(toHero), menuItems: menuItems.map(toMenuItem) };
+  return {
+    settings,
+    heroImages: heroImages.map(toHero),
+    menuItems: menuItems.map(toMenuItem),
+    favourites: favourites.map(toFavourite),
+    storyImages: storyImages.map(toStoryImage),
+  };
 }
 
 export async function getSettings(): Promise<WebsiteSettings> {
@@ -274,6 +355,128 @@ export async function deleteMenuItem(id: string): Promise<boolean> {
   return true;
 }
 
+export async function getFavourites(): Promise<Favourite[]> {
+  return (await getContent()).favourites;
+}
+
+export async function createFavourite(input: FavouriteInput): Promise<Favourite> {
+  const c = await db();
+  const last = await c.favourites.find().sort({ position: -1 }).limit(1).next();
+  const now = new Date().toISOString();
+  const favourite: Favourite = {
+    ...input,
+    id: randomUUID(),
+    position: (last?.position ?? -1) + 1,
+    createdAt: now,
+    updatedAt: now,
+  };
+  await c.favourites.insertOne(toFavouriteDoc(favourite));
+  return favourite;
+}
+
+export async function updateFavourite(
+  id: string,
+  input: FavouriteInput
+): Promise<Favourite | null> {
+  const updatedAt = new Date().toISOString();
+  const before = await (await db()).favourites.findOneAndUpdate(
+    { _id: id },
+    { $set: { ...input, imageFileId: toFileId(input.imageUrl), updatedAt } },
+    { returnDocument: "before" }
+  );
+  if (!before) return null;
+
+  const oldFile = fileIdFromUrl(before.imageUrl);
+  if (oldFile && before.imageUrl !== input.imageUrl) await cleanUpImages([oldFile]);
+  return toFavourite({ ...before, ...input, updatedAt });
+}
+
+export async function deleteFavourite(id: string): Promise<boolean> {
+  const doc = await (await db()).favourites.findOneAndDelete({ _id: id });
+  if (!doc) return false;
+  const oldFile = fileIdFromUrl(doc.imageUrl);
+  await cleanUpImages(oldFile ? [oldFile] : []);
+  return true;
+}
+
+/**
+ * Sets the display order; `ids` must list every favourite exactly once.
+ * Returns null when the list doesn't match what's saved (e.g. edited in another tab).
+ */
+export async function reorderFavourites(ids: string[]): Promise<Favourite[] | null> {
+  const c = await db();
+  const existing = await c.favourites.find().toArray();
+  const byId = new Map(existing.map((doc) => [doc._id, doc]));
+  if (ids.length !== existing.length || ids.some((id) => !byId.has(id))) return null;
+
+  const now = new Date().toISOString();
+  const changed = ids.filter((id, position) => byId.get(id)!.position !== position);
+  if (changed.length) {
+    await c.favourites.bulkWrite(
+      changed.map((id) => ({
+        updateOne: {
+          filter: { _id: id },
+          update: { $set: { position: ids.indexOf(id), updatedAt: now } },
+        },
+      }))
+    );
+  }
+  return ids.map((id, position) => {
+    const doc = byId.get(id)!;
+    return toFavourite(
+      doc.position === position ? doc : { ...doc, position, updatedAt: now }
+    );
+  });
+}
+
+/** Replaces the whole Our Story gallery; array order becomes display order. */
+export async function saveStoryImages(input: StoryImageInput[]): Promise<StoryImage[]> {
+  const c = await db();
+  const now = new Date().toISOString();
+  const existing = new Map(
+    (await c.storyImages.find().toArray()).map((doc) => [doc._id, doc])
+  );
+  const fileInfo = await getImageFileInfo(
+    input.map((img) => fileIdFromUrl(img.imageUrl)).filter((id): id is string => Boolean(id))
+  );
+
+  const images: StoryImage[] = input.map((item, position) => {
+    const prev = item.id ? existing.get(item.id) : undefined;
+    const info = fileInfo.get(fileIdFromUrl(item.imageUrl) ?? "");
+    const changed =
+      !prev ||
+      prev.imageUrl !== item.imageUrl ||
+      prev.altText !== item.altText ||
+      prev.position !== position;
+    return {
+      id: prev?._id ?? randomUUID(),
+      imageUrl: item.imageUrl,
+      altText: item.altText,
+      width: info?.width ?? null,
+      height: info?.height ?? null,
+      position,
+      createdAt: prev?.createdAt ?? now,
+      updatedAt: changed ? now : prev.updatedAt,
+    };
+  });
+
+  await c.storyImages.bulkWrite([
+    { deleteMany: { filter: { _id: { $nin: images.map((img) => img.id) } } } },
+    ...images.map((img) => {
+      const { _id, ...replacement } = toStoryDoc(img);
+      return { replaceOne: { filter: { _id }, replacement, upsert: true } };
+    }),
+  ]);
+
+  const kept = new Set(images.map((img) => img.imageUrl));
+  const removed = [...existing.values()]
+    .filter((doc) => !kept.has(doc.imageUrl))
+    .map((doc) => fileIdFromUrl(doc.imageUrl))
+    .filter((id): id is string => Boolean(id));
+  await cleanUpImages(removed);
+  return images;
+}
+
 export async function findAdminUserByUsername(username: string): Promise<AdminUser | null> {
   const doc = await (await collections()).adminUsers.findOne({
     username: username.toLowerCase(),
@@ -328,14 +531,16 @@ export async function deleteAdminUser(id: string): Promise<boolean> {
   return result.deletedCount > 0;
 }
 
-/** GridFS file ids currently referenced by saved hero images and menu items. */
+/** GridFS file ids currently referenced by any saved content. */
 export async function getReferencedImageIds(): Promise<Set<string>> {
   const c = await db();
-  const [hero, menu] = await Promise.all([
+  const lists = await Promise.all([
     c.heroImages.distinct("imageUrl"),
     c.menuItems.distinct("imageUrl"),
+    c.favourites.distinct("imageUrl"),
+    c.storyImages.distinct("imageUrl"),
   ]);
   return new Set(
-    [...hero, ...menu].map(fileIdFromUrl).filter((id): id is string => Boolean(id))
+    lists.flat().map(fileIdFromUrl).filter((id): id is string => Boolean(id))
   );
 }

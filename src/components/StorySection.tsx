@@ -2,21 +2,27 @@
 
 import Image from "next/image";
 import Reveal from "@/components/Reveal";
+import StoryGallery, { type StoryGalleryImage } from "@/components/StoryGallery";
 
-export default function StorySection() {
+export default function StorySection({ images }: { images: StoryGalleryImage[] }) {
   return (
     <section id="story" className="relative">
-      <div className="relative h-[55vh] min-h-[360px] w-full overflow-hidden md:h-[70vh]">
-        <Image
-          src="/images/story/cafe.jpg"
-          alt="Inside RASA café"
-          fill
-          sizes="100vw"
-          className="object-cover"
-          priority={false}
-        />
-        <div className="absolute inset-0 bg-ink/25" />
-      </div>
+      {images.length > 0 ? (
+        <StoryGallery images={images} />
+      ) : (
+        // Until the admin uploads gallery photos, keep the original café photo.
+        <div className="relative h-[55vh] min-h-[360px] w-full overflow-hidden md:h-[70vh]">
+          <Image
+            src="/images/story/cafe.jpg"
+            alt="Inside RASA café"
+            fill
+            sizes="100vw"
+            className="object-cover"
+            priority={false}
+          />
+          <div className="absolute inset-0 bg-ink/25" />
+        </div>
+      )}
 
       <div className="section-pad bg-cream py-20 md:py-28">
         <div className="mx-auto max-w-7xl">

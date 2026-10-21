@@ -13,15 +13,24 @@ export { MAX_UPLOAD_BYTES } from "@/lib/upload-rules";
  * a new file, and files no saved content references are deleted.
  */
 
-export type ImageSection = "hero" | "menu";
+export const IMAGE_SECTIONS = ["hero", "menu", "favourite", "story"] as const;
+export type ImageSection = (typeof IMAGE_SECTIONS)[number];
 export type StoredImage = {
   id: string;
   url: string;
   filename: string;
   contentType: string;
   size: number;
+  width: number;
+  height: number;
 };
-type ImageMetadata = { contentType: string; section: ImageSection; originalName: string };
+type ImageMetadata = {
+  contentType: string;
+  section: ImageSection;
+  originalName: string;
+  width?: number;
+  height?: number;
+};
 
 const IMAGE_URL = /^\/api\/images\/([a-f0-9]{24})$/;
 const MAX_DIMENSION = 2400;
@@ -71,11 +80,11 @@ export async function saveUploadedImage(file: File, section: ImageSection): Prom
     throw new UploadError("Unsupported image format. Use JPG, PNG or WebP.");
   }
 
-  const output = await sharp(input, { limitInputPixels: 50_000_000 })
+  const { data: output, info } = await sharp(input, { limitInputPixels: 50_000_000 })
     .rotate()
     .resize({ width: MAX_DIMENSION, height: MAX_DIMENSION, fit: "inside", withoutEnlargement: true })
     .webp({ quality: 82 })
-    .toBuffer();
+    .toBuffer({ resolveWithObject: true });
 
   const id = new ObjectId();
   const filename = `${section}-${id.toHexString()}.webp`;
@@ -83,6 +92,8 @@ export async function saveUploadedImage(file: File, section: ImageSection): Prom
     contentType: "image/webp",
     section,
     originalName: file.name.slice(0, 200),
+    width: info.width,
+    height: info.height,
   };
 
   const upload = (await bucket()).openUploadStreamWithId(id, filename, { metadata });
@@ -97,6 +108,8 @@ export async function saveUploadedImage(file: File, section: ImageSection): Prom
     filename,
     contentType: metadata.contentType,
     size: output.length,
+    width: info.width,
+    height: info.height,
   };
 }
 
@@ -114,9 +127,17 @@ export async function openImage(id: string) {
   };
 }
 
-/** filename/contentType for GridFS files, keyed by id. */
+export type ImageFileInfo = {
+  filename: string;
+  contentType: string;
+  /** Pixel size; missing on files uploaded before it was recorded. */
+  width: number | null;
+  height: number | null;
+};
+
+/** filename/contentType/size for GridFS files, keyed by id. */
 export async function getImageFileInfo(ids: string[]) {
-  const info = new Map<string, { filename: string; contentType: string }>();
+  const info = new Map<string, ImageFileInfo>();
   if (ids.length === 0) return info;
   const files = await (await bucket())
     .find({ _id: { $in: ids.map((id) => new ObjectId(id)) } })
@@ -126,6 +147,8 @@ export async function getImageFileInfo(ids: string[]) {
     info.set(f._id.toHexString(), {
       filename: f.filename,
       contentType: metadata?.contentType ?? "image/webp",
+      width: metadata?.width ?? null,
+      height: metadata?.height ?? null,
     });
   }
   return info;

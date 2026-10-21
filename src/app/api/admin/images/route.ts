@@ -2,15 +2,14 @@ import { NextResponse, type NextRequest } from "next/server";
 import { guardAdminApi } from "@/lib/auth/guard";
 import {
   describeImageError,
+  IMAGE_SECTIONS,
   MAX_UPLOAD_BYTES,
   saveUploadedImage,
   UploadError,
   type ImageSection,
 } from "@/lib/images";
 
-const SECTIONS: ImageSection[] = ["hero", "menu"];
-
-/** Stores an image in GridFS. It's linked to a hero slot or menu item when that is saved. */
+/** Stores an image in GridFS. It's linked to a hero slot, menu item, favourite or story photo when that is saved. */
 export async function POST(request: NextRequest) {
   const denied = await guardAdminApi(request);
   if (denied) return denied;
@@ -29,7 +28,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Choose an image to upload." }, { status: 400 });
   }
   const section = form?.get("section");
-  if (!SECTIONS.includes(section as ImageSection)) {
+  if (!IMAGE_SECTIONS.includes(section as ImageSection)) {
     return NextResponse.json({ error: "Invalid image section." }, { status: 400 });
   }
 

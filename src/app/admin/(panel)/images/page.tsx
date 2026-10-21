@@ -5,7 +5,7 @@ export default async function AdminHeroPage() {
   const { heroImages } = await getContent();
   return (
     <div>
-      <h1 className="text-2xl font-semibold">Hero Images</h1>
+      <h1 className="text-2xl font-semibold">Hero Gallery</h1>
       <p className="mt-1 text-sm text-stone-500">
         The moving gallery at the top of the homepage is designed for exactly 10
         images. Drag to reorder, then save.

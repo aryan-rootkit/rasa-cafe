@@ -2,7 +2,6 @@ import Navbar from "@/components/Navbar";
 import HeroGallery from "@/components/HeroGallery";
 import IntroSection from "@/components/IntroSection";
 import TopSellers from "@/components/TopSellers";
-import OrderOfTheDay from "@/components/OrderOfTheDay";
 import MenuPreview from "@/components/MenuPreview";
 import StorySection from "@/components/StorySection";
 import VisitSection from "@/components/VisitSection";
@@ -11,7 +10,7 @@ import { HERO_IMAGE_LIMIT } from "@/lib/content/schema";
 import { getContent } from "@/lib/content/store";
 
 export default async function Home() {
-  const { settings, heroImages, menuItems } = await getContent();
+  const { settings, heroImages, menuItems, favourites, storyImages } = await getContent();
 
   const hero = heroImages
     .filter((img) => img.isActive)
@@ -20,27 +19,38 @@ export default async function Home() {
 
   const visibleItems = menuItems
     .filter((item) => item.isVisible)
-    .map(({ id, name, description, price, category, imageUrl, isFeatured }) => ({
+    .map(({ id, name, description, price, category }) => ({
       id,
       name,
       description,
       price,
       category,
-      imageUrl,
-      isFeatured,
     }));
 
-  const favourites = visibleItems.filter((item) => item.isFeatured && item.imageUrl);
+  // Only what the cards show: no prices in this section.
+  const favouriteCards = favourites.map(({ id, name, description, imageUrl }) => ({
+    id,
+    name,
+    description,
+    imageUrl,
+  }));
+
+  const story = storyImages.map(({ id, imageUrl, altText, width, height }) => ({
+    id,
+    imageUrl,
+    altText,
+    width,
+    height,
+  }));
 
   return (
     <main className="grain relative overflow-x-clip">
-      <Navbar mapsUrl={settings.mapsUrl} instagramUrl={settings.instagramUrl} />
+      <Navbar instagramUrl={settings.instagramUrl} />
       <HeroGallery images={hero} />
       <IntroSection />
-      <TopSellers items={favourites} />
-      <OrderOfTheDay />
+      <TopSellers items={favouriteCards} />
       <MenuPreview items={visibleItems} />
-      <StorySection />
+      <StorySection images={story} />
       <VisitSection settings={settings} />
       <Footer settings={settings} />
     </main>
