@@ -1,23 +1,22 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState, type FormEvent } from "react";
-import Image from "next/image";
-import { ImageIcon, Loader2, Pencil, Plus, Trash2, Upload, X } from "lucide-react";
+import { useCallback, useMemo, useState, type FormEvent } from "react";
+import { FolderPlus, Loader2, Pencil, Plus, Trash2, X } from "lucide-react";
 import {
-  MENU_CATEGORIES,
+  menuCategoryInputSchema,
   menuItemInputSchema,
+  type MenuCategory,
   type MenuCategoryId,
   type MenuItem,
   type MenuItemInput,
 } from "@/lib/content/schema";
-import { ACCEPT_ATTRIBUTE } from "@/lib/upload-rules";
-import { adminRequest, uploadImage } from "./api";
+import { adminRequest } from "./api";
 import Notice, { type NoticeState } from "./Notice";
 
 const EMPTY: MenuItemInput = {
   name: "",
   description: "",
-  category: "coffee",
+  category: "",
   price: 0,
   imageUrl: "",
   isVisible: true,
@@ -34,22 +33,46 @@ const toInput = ({ name, description, category, price, imageUrl, isVisible, isFe
   isFeatured,
 });
 
-export default function MenuManager({ initial }: { initial: MenuItem[] }) {
-  const [items, setItems] = useState(initial);
+const itemCount = (n: number) => `${n} ${n === 1 ? "item" : "items"}`;
+
+export default function MenuManager({
+  initialCategories,
+  initialItems,
+}: {
+  initialCategories: MenuCategory[];
+  initialItems: MenuItem[];
+}) {
+  const [categories, setCategories] = useState(initialCategories);
+  const [items, setItems] = useState(initialItems);
   const [filter, setFilter] = useState<MenuCategoryId | "all">("all");
   const [editing, setEditing] = useState<{ id: string | null; values: MenuItemInput } | null>(null);
+  const [editingCategory, setEditingCategory] = useState<MenuCategory | "new" | null>(null);
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [notice, setNotice] = useState<NoticeState>(null);
   const dismiss = useCallback(() => setNotice(null), []);
 
+  const counts = useMemo(() => {
+    const map = new Map<string, { total: number; hidden: number }>();
+    for (const item of items) {
+      const entry = map.get(item.category) ?? { total: 0, hidden: 0 };
+      entry.total += 1;
+      if (!item.isVisible) entry.hidden += 1;
+      map.set(item.category, entry);
+    }
+    return map;
+  }, [items]);
+
   const groups = useMemo(
     () =>
-      MENU_CATEGORIES.filter((c) => filter === "all" || c.id === filter).map((c) => ({
-        ...c,
-        items: items.filter((i) => i.category === c.id),
-      })),
-    [items, filter]
+      categories
+        .filter((c) => filter === "all" || c.id === filter)
+        .map((c) => ({ ...c, items: items.filter((i) => i.category === c.id) })),
+    [categories, items, filter]
   );
+
+  function startNewItem(category: MenuCategoryId) {
+    setEditing({ id: null, values: { ...EMPTY, category } });
+  }
 
   async function saveItem(id: string | null, values: MenuItemInput) {
     const { item } = id
@@ -57,6 +80,41 @@ export default function MenuManager({ initial }: { initial: MenuItem[] }) {
       : await adminRequest<{ item: MenuItem }>("/api/admin/menu", { method: "POST", body: values });
     setItems((prev) => (id ? prev.map((i) => (i.id === id ? item : i)) : [...prev, item]));
     return item;
+  }
+
+  async function saveCategory(target: MenuCategory | "new", label: string) {
+    if (target === "new") {
+      const { category } = await adminRequest<{ category: MenuCategory }>("/api/admin/menu-categories", {
+        method: "POST",
+        body: { label },
+      });
+      setCategories((prev) => [...prev, category]);
+      setFilter(category.id);
+      setNotice({ type: "success", message: `“${category.label}” was added. You can add items to it now.` });
+    } else {
+      const { category } = await adminRequest<{ category: MenuCategory }>(
+        `/api/admin/menu-categories/${target.id}`,
+        { method: "PUT", body: { label } }
+      );
+      setCategories((prev) => prev.map((c) => (c.id === category.id ? category : c)));
+      setNotice({ type: "success", message: "Category renamed." });
+    }
+    setEditingCategory(null);
+  }
+
+  async function removeCategory(category: MenuCategory) {
+    if (!confirm(`Delete the “${category.label}” category?`)) return;
+    setPendingId(category.id);
+    try {
+      await adminRequest(`/api/admin/menu-categories/${category.id}`, { method: "DELETE" });
+      setCategories((prev) => prev.filter((c) => c.id !== category.id));
+      if (filter === category.id) setFilter("all");
+      setNotice({ type: "success", message: `“${category.label}” was deleted.` });
+    } catch (err) {
+      setNotice({ type: "error", message: (err as Error).message });
+    } finally {
+      setPendingId(null);
+    }
   }
 
   async function quickToggle(item: MenuItem, key: "isVisible") {
@@ -85,54 +143,90 @@ export default function MenuManager({ initial }: { initial: MenuItem[] }) {
     }
   }
 
+  const hiddenTotal = items.filter((i) => !i.isVisible).length;
+
   return (
     <div className="mt-8 space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <select
-          value={filter}
-          onChange={(e) => setFilter(e.target.value as MenuCategoryId | "all")}
-          className="admin-input w-auto"
-          aria-label="Filter by category"
-        >
-          <option value="all">All categories ({items.length})</option>
-          {MENU_CATEGORIES.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.label} ({items.filter((i) => i.category === c.id).length})
-            </option>
-          ))}
-        </select>
+        <h2 className="text-sm font-semibold text-stone-700">Categories</h2>
+        <div className="flex flex-wrap gap-2">
+          <button type="button" className="admin-btn-secondary" onClick={() => setEditingCategory("new")}>
+            <FolderPlus size={16} />
+            Add category
+          </button>
+          <button
+            type="button"
+            className="admin-btn-primary"
+            disabled={categories.length === 0}
+            onClick={() => startNewItem(filter === "all" ? categories[0].id : filter)}
+          >
+            <Plus size={16} />
+            Add menu item
+          </button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+        <CategoryCard
+          label="All items"
+          total={items.length}
+          hidden={hiddenTotal}
+          selected={filter === "all"}
+          onSelect={() => setFilter("all")}
+        />
+        {categories.map((category) => {
+          const count = counts.get(category.id) ?? { total: 0, hidden: 0 };
+          return (
+            <CategoryCard
+              key={category.id}
+              label={category.label}
+              total={count.total}
+              hidden={count.hidden}
+              selected={filter === category.id}
+              busy={pendingId === category.id}
+              onSelect={() => setFilter(category.id)}
+              onRename={() => setEditingCategory(category)}
+              onDelete={count.total === 0 ? () => removeCategory(category) : undefined}
+            />
+          );
+        })}
         <button
           type="button"
-          className="admin-btn-primary"
-          onClick={() =>
-            setEditing({ id: null, values: { ...EMPTY, category: filter === "all" ? "coffee" : filter } })
-          }
+          onClick={() => setEditingCategory("new")}
+          className="flex min-h-[104px] flex-col items-center justify-center gap-1.5 rounded-xl border border-dashed border-stone-300 text-sm font-medium text-stone-500 transition-colors hover:border-stone-500 hover:text-stone-800"
         >
-          <Plus size={16} />
-          Add menu item
+          <Plus size={18} />
+          Add category
         </button>
       </div>
 
       <Notice notice={notice} onDismiss={dismiss} />
 
+      {categories.length === 0 && (
+        <p className="rounded-xl border border-stone-200 bg-white px-5 py-6 text-sm text-stone-500">
+          Add a category first, then add menu items to it.
+        </p>
+      )}
+
       {groups.map((group) => (
         <section key={group.id} className="overflow-hidden rounded-xl border border-stone-200 bg-white">
-          <h2 className="border-b border-stone-100 bg-stone-50 px-5 py-3 text-sm font-semibold">
-            {group.label}
-          </h2>
+          <div className="flex items-center justify-between gap-3 border-b border-stone-100 bg-stone-50 px-5 py-2">
+            <h2 className="text-sm font-semibold">{group.label}</h2>
+            <button
+              type="button"
+              onClick={() => startNewItem(group.id)}
+              className="inline-flex items-center gap-1 rounded-md px-2 py-1.5 text-sm text-stone-600 hover:bg-stone-100 hover:text-stone-900"
+            >
+              <Plus size={14} />
+              Add item
+            </button>
+          </div>
           {group.items.length === 0 ? (
             <p className="px-5 py-6 text-sm text-stone-500">No items in this category yet.</p>
           ) : (
             <ul className="divide-y divide-stone-100">
               {group.items.map((item) => (
                 <li key={item.id} className="flex flex-wrap items-center gap-4 px-5 py-3 sm:flex-nowrap">
-                  <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-md bg-stone-100">
-                    {item.imageUrl ? (
-                      <Image src={item.imageUrl} alt="" fill sizes="48px" className="object-cover" />
-                    ) : (
-                      <ImageIcon size={18} className="absolute inset-0 m-auto text-stone-300" />
-                    )}
-                  </div>
                   <div className="min-w-0 flex-1">
                     <p className={`truncate font-medium ${item.isVisible ? "" : "text-stone-400 line-through"}`}>
                       {item.name}
@@ -184,6 +278,7 @@ export default function MenuManager({ initial }: { initial: MenuItem[] }) {
       {editing && (
         <MenuItemDialog
           key={editing.id ?? "new"}
+          categories={categories}
           initial={editing.values}
           isNew={editing.id === null}
           onClose={() => setEditing(null)}
@@ -194,16 +289,174 @@ export default function MenuManager({ initial }: { initial: MenuItem[] }) {
           }}
         />
       )}
+
+      {editingCategory && (
+        <CategoryDialog
+          key={editingCategory === "new" ? "new" : editingCategory.id}
+          initial={editingCategory === "new" ? "" : editingCategory.label}
+          isNew={editingCategory === "new"}
+          onClose={() => setEditingCategory(null)}
+          onSave={(label) => saveCategory(editingCategory, label)}
+        />
+      )}
     </div>
   );
 }
 
-function MenuItemDialog({
+function CategoryCard({
+  label,
+  total,
+  hidden,
+  selected,
+  busy,
+  onSelect,
+  onRename,
+  onDelete,
+}: {
+  label: string;
+  total: number;
+  hidden: number;
+  selected: boolean;
+  busy?: boolean;
+  onSelect: () => void;
+  onRename?: () => void;
+  onDelete?: () => void;
+}) {
+  return (
+    <div
+      className={`relative rounded-xl border bg-white transition-colors ${
+        selected ? "border-stone-900 ring-1 ring-stone-900" : "border-stone-200 hover:border-stone-400"
+      }`}
+    >
+      <button
+        type="button"
+        onClick={onSelect}
+        aria-pressed={selected}
+        className="block min-h-[104px] w-full rounded-xl p-4 pr-16 text-left"
+      >
+        <span className="block truncate text-sm font-medium text-stone-500">{label}</span>
+        <span className="mt-1 block text-2xl font-semibold">{itemCount(total)}</span>
+        <span className="mt-0.5 block text-xs text-stone-500">
+          {total === 0 ? "No items yet" : hidden > 0 ? `${hidden} hidden` : "All visible"}
+        </span>
+      </button>
+      {(onRename || onDelete || busy) && (
+        <div className="absolute top-2 right-2 flex items-center">
+          {busy && <Loader2 size={14} className="m-1.5 animate-spin text-stone-400" />}
+          {onRename && (
+            <button
+              type="button"
+              onClick={onRename}
+              className="rounded-md p-1.5 text-stone-500 hover:bg-stone-100 hover:text-stone-900"
+              aria-label={`Rename ${label}`}
+              title="Rename"
+            >
+              <Pencil size={14} />
+            </button>
+          )}
+          {onDelete && (
+            <button
+              type="button"
+              onClick={onDelete}
+              disabled={busy}
+              className="rounded-md p-1.5 text-stone-500 hover:bg-red-50 hover:text-red-700"
+              aria-label={`Delete ${label}`}
+              title="Delete (only empty categories)"
+            >
+              <Trash2 size={14} />
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CategoryDialog({
   initial,
   isNew,
   onClose,
   onSave,
 }: {
+  initial: string;
+  isNew: boolean;
+  onClose: () => void;
+  onSave: (label: string) => Promise<void>;
+}) {
+  const [label, setLabel] = useState(initial);
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    const parsed = menuCategoryInputSchema.safeParse({ label });
+    if (!parsed.success) {
+      setError(parsed.error.issues[0]?.message ?? "Invalid name.");
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      await onSave(parsed.data.label);
+    } catch (err) {
+      setError((err as Error).message);
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-stone-900/40 p-0 sm:items-center sm:p-4">
+      <form
+        onSubmit={submit}
+        noValidate
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="category-dialog-title"
+        className="w-full max-w-sm rounded-t-2xl bg-white shadow-xl sm:rounded-2xl"
+      >
+        <div className="flex items-center justify-between border-b border-stone-100 px-6 py-4">
+          <h2 id="category-dialog-title" className="font-semibold">
+            {isNew ? "Add category" : "Rename category"}
+          </h2>
+          <button type="button" onClick={onClose} aria-label="Close" className="rounded-md p-1.5 hover:bg-stone-100">
+            <X size={18} />
+          </button>
+        </div>
+        <div className="px-6 py-5">
+          <Field label="Category name" error={error ?? undefined} hint="Shown as a heading on the website menu.">
+            <input
+              value={label}
+              maxLength={40}
+              onChange={(e) => setLabel(e.target.value)}
+              className="admin-input mt-1.5"
+              aria-invalid={Boolean(error)}
+              placeholder="e.g. Sandwiches"
+              autoFocus
+            />
+          </Field>
+        </div>
+        <div className="flex justify-end gap-2 border-t border-stone-100 px-6 py-4">
+          <button type="button" onClick={onClose} className="admin-btn-secondary">
+            Cancel
+          </button>
+          <button type="submit" disabled={saving} className="admin-btn-primary">
+            {saving && <Loader2 size={16} className="animate-spin" />}
+            {saving ? "Saving…" : isNew ? "Add category" : "Save"}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+function MenuItemDialog({
+  categories,
+  initial,
+  isNew,
+  onClose,
+  onSave,
+}: {
+  categories: MenuCategory[];
   initial: MenuItemInput;
   isNew: boolean;
   onClose: () => void;
@@ -214,24 +467,9 @@ function MenuItemDialog({
   const [errors, setErrors] = useState<Partial<Record<keyof MenuItemInput, string>>>({});
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  const fileInput = useRef<HTMLInputElement>(null);
 
   const set = <K extends keyof MenuItemInput>(key: K, value: MenuItemInput[K]) =>
     setValues((v) => ({ ...v, [key]: value }));
-
-  async function onUpload(file: File | undefined) {
-    if (!file) return;
-    setUploading(true);
-    setError(null);
-    try {
-      set("imageUrl", await uploadImage(file, "menu"));
-    } catch (err) {
-      setError((err as Error).message);
-    } finally {
-      setUploading(false);
-    }
-  }
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -276,52 +514,6 @@ function MenuItemDialog({
         </div>
 
         <div className="space-y-4 px-6 py-5">
-          <div className="flex items-center gap-4">
-            <div className="relative h-24 w-24 shrink-0 overflow-hidden rounded-lg bg-stone-100">
-              {values.imageUrl ? (
-                <Image src={values.imageUrl} alt="" fill sizes="96px" className="object-cover" />
-              ) : (
-                <ImageIcon className="absolute inset-0 m-auto text-stone-300" />
-              )}
-              {uploading && (
-                <div className="absolute inset-0 flex items-center justify-center bg-white/70">
-                  <Loader2 className="animate-spin" />
-                </div>
-              )}
-            </div>
-            <div className="space-y-2">
-              <input
-                ref={fileInput}
-                type="file"
-                accept={ACCEPT_ATTRIBUTE}
-                className="hidden"
-                onChange={(e) => {
-                  onUpload(e.target.files?.[0]);
-                  e.target.value = "";
-                }}
-              />
-              <button
-                type="button"
-                className="admin-btn-secondary"
-                disabled={uploading}
-                onClick={() => fileInput.current?.click()}
-              >
-                <Upload size={16} />
-                {values.imageUrl ? "Replace photo" : "Upload photo"}
-              </button>
-              {values.imageUrl && (
-                <button
-                  type="button"
-                  className="block text-sm text-red-600 hover:underline"
-                  onClick={() => set("imageUrl", "")}
-                >
-                  Remove photo
-                </button>
-              )}
-              <p className="text-xs text-stone-500">JPG, PNG or WebP.</p>
-            </div>
-          </div>
-
           <Field label="Name" error={errors.name}>
             <input
               value={values.name}
@@ -350,7 +542,7 @@ function MenuItemDialog({
                 onChange={(e) => set("category", e.target.value as MenuCategoryId)}
                 className="admin-input mt-1.5"
               >
-                {MENU_CATEGORIES.map((c) => (
+                {categories.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.label}
                   </option>
@@ -388,7 +580,7 @@ function MenuItemDialog({
           <button type="button" onClick={onClose} className="admin-btn-secondary">
             Cancel
           </button>
-          <button type="submit" disabled={saving || uploading} className="admin-btn-primary">
+          <button type="submit" disabled={saving} className="admin-btn-primary">
             {saving && <Loader2 size={16} className="animate-spin" />}
             {saving ? "Saving…" : isNew ? "Add item" : "Save Changes"}
           </button>

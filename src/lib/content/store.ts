@@ -7,11 +7,13 @@ import {
   type AdminUserDoc,
   type FavouriteDoc,
   type HeroImageDoc,
+  type MenuCategoryDoc,
   type MenuItemDoc,
   type StoryImageDoc,
 } from "@/lib/db/collections";
 import { databaseConfigured } from "@/lib/db/mongodb";
 import { fileIdFromUrl, getImageFileInfo, pruneUnusedImages } from "@/lib/images";
+import { categoryIdFromLabel } from "./categories";
 import { createDefaultContent, favouritesFromMenu } from "./defaults";
 import {
   HERO_IMAGE_LIMIT,
@@ -20,6 +22,7 @@ import {
   type FavouriteInput,
   type HeroImage,
   type HeroImageInput,
+  type MenuCategory,
   type MenuItem,
   type MenuItemInput,
   type PublicAdminUser,
@@ -41,6 +44,13 @@ const toHero = (d: WithId<HeroImageDoc>): HeroImage => ({
   altText: d.altText,
   position: d.position,
   isActive: d.isActive,
+  createdAt: d.createdAt,
+  updatedAt: d.updatedAt,
+});
+const toMenuCategory = (d: WithId<MenuCategoryDoc>): MenuCategory => ({
+  id: d._id,
+  label: d.label,
+  position: d.position,
   createdAt: d.createdAt,
   updatedAt: d.updatedAt,
 });
@@ -152,6 +162,22 @@ async function migrate(c: Collections) {
     const favourites = favouritesFromMenu(menu.map(toMenuItem), () => randomUUID());
     if (favourites.length) await c.favourites.insertMany(favourites.map(toFavouriteDoc));
   });
+
+  await runOnce(c, "migration:menu-categories-v1", async () => {
+    // Categories used to be fixed in code. Store them so admins can add and
+    // rename them, keeping any category a saved item already uses.
+    if (await c.menuCategories.countDocuments({}, { limit: 1 })) return;
+    const categories = [...createDefaultContent().menuCategories];
+    const known = new Set(categories.map((cat) => cat.id));
+    const now = new Date().toISOString();
+    for (const id of await c.menuItems.distinct("category")) {
+      if (known.has(id)) continue;
+      known.add(id);
+      const label = id.replace(/-/g, " ").replace(/\b\w/g, (ch) => ch.toUpperCase());
+      categories.push({ id, label, position: categories.length, createdAt: now, updatedAt: now });
+    }
+    await c.menuCategories.insertMany(categories.map(({ id, ...cat }) => ({ _id: id, ...cat })));
+  });
 }
 
 async function runOnce(c: Collections, id: string, run: () => Promise<void>) {
@@ -215,13 +241,15 @@ export async function getStoredAuthSecret(): Promise<string> {
 
 export async function getContent(): Promise<SiteContent> {
   if (!databaseConfigured) {
-    const { settings, heroImages, menuItems, favourites, storyImages } = createDefaultContent();
-    return { settings, heroImages, menuItems, favourites, storyImages };
+    const { settings, heroImages, menuCategories, menuItems, favourites, storyImages } =
+      createDefaultContent();
+    return { settings, heroImages, menuCategories, menuItems, favourites, storyImages };
   }
   const c = await db();
-  const [settings, heroImages, menuItems, favourites, storyImages] = await Promise.all([
+  const [settings, heroImages, menuCategories, menuItems, favourites, storyImages] = await Promise.all([
     getSettings(),
     c.heroImages.find().sort({ position: 1 }).toArray(),
+    c.menuCategories.find().sort({ position: 1 }).toArray(),
     c.menuItems.find().sort({ position: 1 }).toArray(),
     c.favourites.find().sort({ position: 1 }).toArray(),
     c.storyImages.find().sort({ position: 1 }).toArray(),
@@ -229,6 +257,7 @@ export async function getContent(): Promise<SiteContent> {
   return {
     settings,
     heroImages: heroImages.map(toHero),
+    menuCategories: menuCategories.map(toMenuCategory),
     menuItems: menuItems.map(toMenuItem),
     favourites: favourites.map(toFavourite),
     storyImages: storyImages.map(toStoryImage),
@@ -303,6 +332,77 @@ export async function saveHeroImages(input: HeroImageInput[]): Promise<HeroImage
     .filter((id): id is string => Boolean(id));
   await cleanUpImages(removed);
   return images;
+}
+
+export async function getMenuCategories(): Promise<MenuCategory[]> {
+  return (await getContent()).menuCategories;
+}
+
+export async function menuCategoryExists(id: string): Promise<boolean> {
+  return Boolean(await (await db()).menuCategories.countDocuments({ _id: id }, { limit: 1 }));
+}
+
+const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+async function labelTaken(c: Collections, label: string, exceptId?: string) {
+  return Boolean(
+    await c.menuCategories.countDocuments(
+      {
+        label: { $regex: `^${escapeRegex(label)}$`, $options: "i" },
+        ...(exceptId ? { _id: { $ne: exceptId } } : {}),
+      },
+      { limit: 1 }
+    )
+  );
+}
+
+/** Returns null when a category with the same name already exists. */
+export async function createMenuCategory(label: string): Promise<MenuCategory | null> {
+  const c = await db();
+  if (await labelTaken(c, label)) return null;
+
+  const base = categoryIdFromLabel(label);
+  const taken = new Set(
+    (await c.menuCategories.find({}, { projection: { _id: 1 } }).toArray()).map((d) => d._id)
+  );
+  let id = base;
+  for (let n = 2; taken.has(id); n++) id = `${base}-${n}`;
+
+  const last = await c.menuCategories.find().sort({ position: -1 }).limit(1).next();
+  const now = new Date().toISOString();
+  const category: MenuCategory = {
+    id,
+    label,
+    position: (last?.position ?? -1) + 1,
+    createdAt: now,
+    updatedAt: now,
+  };
+  const { id: _id, ...doc } = category;
+  await c.menuCategories.insertOne({ _id, ...doc });
+  return category;
+}
+
+/** Only the name changes; the id (stored on each item) stays the same. */
+export async function renameMenuCategory(
+  id: string,
+  label: string
+): Promise<MenuCategory | "not-found" | "taken"> {
+  const c = await db();
+  if (await labelTaken(c, label, id)) return "taken";
+  const doc = await c.menuCategories.findOneAndUpdate(
+    { _id: id },
+    { $set: { label, updatedAt: new Date().toISOString() } },
+    { returnDocument: "after" }
+  );
+  return doc ? toMenuCategory(doc) : "not-found";
+}
+
+/** Only empty categories can be deleted, so no menu item is ever left without one. */
+export async function deleteMenuCategory(id: string): Promise<"deleted" | "not-found" | "in-use"> {
+  const c = await db();
+  if (await c.menuItems.countDocuments({ category: id }, { limit: 1 })) return "in-use";
+  const result = await c.menuCategories.deleteOne({ _id: id });
+  return result.deletedCount ? "deleted" : "not-found";
 }
 
 export async function getMenuItems(): Promise<MenuItem[]> {

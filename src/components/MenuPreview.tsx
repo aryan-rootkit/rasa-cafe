@@ -6,15 +6,23 @@ import { ArrowRight } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import MenuItem, { type MenuRowItem } from "@/components/MenuItem";
 import Reveal from "@/components/Reveal";
-import { MENU_CATEGORIES, type MenuCategoryId } from "@/lib/content/categories";
+import type { MenuCategoryId } from "@/lib/content/categories";
 import { cn } from "@/lib/cn";
 
 const PREVIEW_LIMIT = 5;
 
 type PreviewItem = MenuRowItem & { id: string; category: MenuCategoryId };
 
-export default function MenuPreview({ items }: { items: PreviewItem[] }) {
-  const categories = MENU_CATEGORIES.map((cat) => ({
+type PreviewCategory = { id: MenuCategoryId; label: string };
+
+export default function MenuPreview({
+  categories: allCategories,
+  items,
+}: {
+  categories: PreviewCategory[];
+  items: PreviewItem[];
+}) {
+  const categories = allCategories.map((cat) => ({
     ...cat,
     items: items.filter((item) => item.category === cat.id),
   })).filter((cat) => cat.items.length > 0);

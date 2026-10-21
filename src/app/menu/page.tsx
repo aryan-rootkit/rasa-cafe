@@ -6,7 +6,6 @@ import Footer from "@/components/Footer";
 import MenuItem from "@/components/MenuItem";
 import Reveal from "@/components/Reveal";
 import { getContent } from "@/lib/content/store";
-import { MENU_CATEGORIES } from "@/lib/content/schema";
 
 export const metadata: Metadata = {
   title: "Menu — RASA",
@@ -14,9 +13,9 @@ export const metadata: Metadata = {
 };
 
 export default async function MenuPage() {
-  const { settings, menuItems } = await getContent();
+  const { settings, menuCategories, menuItems } = await getContent();
   const visible = menuItems.filter((item) => item.isVisible);
-  const categories = MENU_CATEGORIES.map((cat) => ({
+  const categories = menuCategories.map((cat) => ({
     ...cat,
     items: visible.filter((item) => item.category === cat.id),
   })).filter((cat) => cat.items.length > 0);

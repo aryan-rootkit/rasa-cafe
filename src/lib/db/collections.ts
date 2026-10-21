@@ -4,6 +4,7 @@ import type { ObjectId } from "mongodb";
 import type {
   Favourite,
   HeroImage,
+  MenuCategory,
   MenuItem,
   StoryImage,
   WebsiteSettings,
@@ -37,6 +38,9 @@ export type HeroImageDoc = Omit<HeroImage, "id"> & {
   contentType?: string;
 };
 
+/** `menu_categories`: `_id` is the category's slug, which menu items store in `category`. */
+export type MenuCategoryDoc = Omit<MenuCategory, "id"> & { _id: string };
+
 /** `menu_items`: `_id` is the item's UUID; `imageFileId` points at the GridFS file. */
 export type MenuItemDoc = Omit<MenuItem, "id"> & {
   _id: string;
@@ -66,6 +70,7 @@ export async function collections() {
     adminUsers: db.collection<AdminUserDoc>("admin_users"),
     settings: db.collection<SettingsDoc>("settings"),
     heroImages: db.collection<HeroImageDoc>("hero_images"),
+    menuCategories: db.collection<MenuCategoryDoc>("menu_categories"),
     menuItems: db.collection<MenuItemDoc>("menu_items"),
     favourites: db.collection<FavouriteDoc>("favourites"),
     storyImages: db.collection<StoryImageDoc>("story_images"),
@@ -75,6 +80,7 @@ export async function collections() {
   indexesReady ??= Promise.all([
     c.adminUsers.createIndex({ username: 1 }, { unique: true }),
     c.heroImages.createIndex({ position: 1 }),
+    c.menuCategories.createIndex({ position: 1 }),
     c.menuItems.createIndex({ position: 1 }),
     c.favourites.createIndex({ position: 1 }),
     c.storyImages.createIndex({ position: 1 }),

@@ -10,7 +10,8 @@ import { HERO_IMAGE_LIMIT } from "@/lib/content/schema";
 import { getContent } from "@/lib/content/store";
 
 export default async function Home() {
-  const { settings, heroImages, menuItems, favourites, storyImages } = await getContent();
+  const { settings, heroImages, menuCategories, menuItems, favourites, storyImages } =
+    await getContent();
 
   const hero = heroImages
     .filter((img) => img.isActive)
@@ -49,7 +50,10 @@ export default async function Home() {
       <HeroGallery images={hero} />
       <IntroSection />
       <TopSellers items={favouriteCards} />
-      <MenuPreview items={visibleItems} />
+      <MenuPreview
+        categories={menuCategories.map(({ id, label }) => ({ id, label }))}
+        items={visibleItems}
+      />
       <StorySection images={story} />
       <VisitSection settings={settings} />
       <Footer />

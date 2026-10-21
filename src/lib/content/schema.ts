@@ -1,14 +1,9 @@
 import { z } from "zod";
-import { MENU_CATEGORIES, type MenuCategoryId } from "./categories";
+import { DEFAULT_MENU_CATEGORIES, type MenuCategoryId } from "./categories";
 
-export { MENU_CATEGORIES, type MenuCategoryId };
+export { DEFAULT_MENU_CATEGORIES, type MenuCategoryId };
 
 export const HERO_IMAGE_LIMIT = 10;
-
-const categoryIds = MENU_CATEGORIES.map((c) => c.id) as [
-  MenuCategoryId,
-  ...MenuCategoryId[],
-];
 
 // Only images we host ourselves: bundled seed images or uploads stored in GridFS.
 const LOCAL_IMAGE_PATTERN =
@@ -90,7 +85,11 @@ export type HeroImage = {
 export const menuItemInputSchema = z.object({
   name: z.string().trim().min(2, "Name is required.").max(80),
   description: z.string().trim().max(200),
-  category: z.enum(categoryIds, { message: "Choose a category." }),
+  category: z
+    .string({ message: "Choose a category." })
+    .trim()
+    .min(1, "Choose a category.")
+    .max(60),
   price: z
     .number({ message: "Price must be a number." })
     .int("Use a whole number.")
@@ -105,6 +104,23 @@ export type MenuItemInput = z.infer<typeof menuItemInputSchema>;
 
 export type MenuItem = MenuItemInput & {
   id: string;
+  position: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export const menuCategoryInputSchema = z.object({
+  label: z
+    .string({ message: "Category name is required." })
+    .trim()
+    .min(2, "Category name is required.")
+    .max(40, "Keep the category name under 40 characters."),
+});
+
+export type MenuCategoryInput = z.infer<typeof menuCategoryInputSchema>;
+
+export type MenuCategory = MenuCategoryInput & {
+  id: MenuCategoryId;
   position: number;
   createdAt: string;
   updatedAt: string;
@@ -186,6 +202,7 @@ export type PublicAdminUser = Pick<AdminUser, "id" | "username" | "createdAt">;
 export type SiteContent = {
   settings: WebsiteSettings;
   heroImages: HeroImage[];
+  menuCategories: MenuCategory[];
   menuItems: MenuItem[];
   favourites: Favourite[];
   storyImages: StoryImage[];
