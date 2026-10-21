@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { guardAdminApi } from "@/lib/auth/guard";
 import { firstIssue, menuItemInputSchema } from "@/lib/content/schema";
-import { deleteMenuItem, updateMenuItem } from "@/lib/content/store";
+import { deleteMenuItem, menuCategoryExists, updateMenuItem } from "@/lib/content/store";
 import { revalidatePublicPages } from "@/lib/revalidate";
 
 export async function PUT(
@@ -17,6 +17,9 @@ export async function PUT(
   );
   if (!parsed.success) {
     return NextResponse.json({ error: firstIssue(parsed.error) }, { status: 400 });
+  }
+  if (!(await menuCategoryExists(parsed.data.category))) {
+    return NextResponse.json({ error: "That category no longer exists." }, { status: 400 });
   }
 
   const item = await updateMenuItem(id, parsed.data);

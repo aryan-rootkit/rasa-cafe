@@ -1,9 +1,11 @@
-import type {
-  ContentDatabase,
-  Favourite,
-  HeroImage,
-  MenuCategoryId,
-  MenuItem,
+import {
+  DEFAULT_MENU_CATEGORIES,
+  type ContentDatabase,
+  type Favourite,
+  type HeroImage,
+  type MenuCategory,
+  type MenuCategoryId,
+  type MenuItem,
 } from "./schema";
 
 const SEED_DATE = "2026-09-29T00:00:00.000Z";
@@ -109,6 +111,14 @@ const menuSeed: MenuSeed[] = [
   { name: "Hot Chocolate", category: "beverages", price: 210 },
 ];
 
+const menuCategories: MenuCategory[] = DEFAULT_MENU_CATEGORIES.map(({ id, label }, position) => ({
+  id,
+  label,
+  position,
+  createdAt: SEED_DATE,
+  updatedAt: SEED_DATE,
+}));
+
 const menuItems: MenuItem[] = menuSeed.map((item, i) => ({
   id: `10000000-0000-4000-8000-${String(i + 1).padStart(12, "0")}`,
   name: item.name,
@@ -161,6 +171,7 @@ export function createDefaultContent(): ContentDatabase {
       updatedAt: SEED_DATE,
     },
     heroImages,
+    menuCategories,
     menuItems,
     favourites,
     storyImages: [],
