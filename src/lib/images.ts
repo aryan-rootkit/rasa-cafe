@@ -40,7 +40,7 @@ export class UploadError extends Error {}
 
 export const imageUrlFor = (id: string) => `/api/images/${id}`;
 
-/** GridFS file id referenced by an image URL, or null for bundled `/images/...` photos. */
+/** GridFS file id referenced by an image URL, or null for anything else. */
 export function fileIdFromUrl(url: string): string | null {
   return IMAGE_URL.exec(url)?.[1] ?? null;
 }

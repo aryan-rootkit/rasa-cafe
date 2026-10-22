@@ -27,7 +27,7 @@ export type SettingsDoc = WebsiteSettings & { _id: "site" };
 
 /**
  * `hero_images`: `_id` is the item's UUID. `fileId` points at the GridFS
- * file (null for bundled seed photos under /images); `imageUrl` is the
+ * file; `imageUrl` is the
  * public URL derived from it.
  */
 export type HeroImageDoc = Omit<HeroImage, "id"> & {

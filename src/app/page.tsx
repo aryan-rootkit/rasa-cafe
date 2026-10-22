@@ -46,7 +46,7 @@ export default async function Home() {
 
   return (
     <main className="grain relative overflow-x-clip">
-      <Navbar instagramUrl={settings.instagramUrl} />
+      <Navbar instagramUrl={settings.instagramUrl} mapsUrl={settings.mapsUrl} />
       <HeroGallery images={hero} />
       <IntroSection />
       <TopSellers items={favouriteCards} />

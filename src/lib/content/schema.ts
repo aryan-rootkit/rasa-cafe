@@ -5,15 +5,13 @@ export { DEFAULT_MENU_CATEGORIES, type MenuCategoryId };
 
 export const HERO_IMAGE_LIMIT = 10;
 
-// Only images we host ourselves: bundled seed images or uploads stored in GridFS.
-const LOCAL_IMAGE_PATTERN =
-  /^\/(?:images\/[a-z0-9/_-]+\.(?:jpe?g|png|webp)|api\/images\/[a-f0-9]{24})$/i;
+// Only images uploaded through the admin and stored in GridFS.
+const UPLOADED_IMAGE_PATTERN = /^\/api\/images\/[a-f0-9]{24}$/i;
 
 export const imageUrlSchema = z
   .string()
   .trim()
-  .regex(LOCAL_IMAGE_PATTERN, "Upload an image to use here.")
-  .refine((v) => !v.includes(".."), "Invalid image path.");
+  .regex(UPLOADED_IMAGE_PATTERN, "Upload an image to use here.");
 
 const httpsUrl = (label: string) =>
   z

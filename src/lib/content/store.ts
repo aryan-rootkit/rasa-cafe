@@ -14,7 +14,7 @@ import {
 import { databaseConfigured } from "@/lib/db/mongodb";
 import { fileIdFromUrl, getImageFileInfo, pruneUnusedImages } from "@/lib/images";
 import { categoryIdFromLabel } from "./categories";
-import { createDefaultContent, favouritesFromMenu } from "./defaults";
+import { createDefaultContent, DEFAULT_ADDRESS, DEFAULT_MAPS_URL, favouritesFromMenu } from "./defaults";
 import {
   HERO_IMAGE_LIMIT,
   type AdminUser,
@@ -178,7 +178,36 @@ async function migrate(c: Collections) {
     }
     await c.menuCategories.insertMany(categories.map(({ id, ...cat }) => ({ _id: id, ...cat })));
   });
+
+  await runOnce(c, "migration:location-2026-10", async () => {
+    // The café's address and Maps listing changed; both stay editable in Website Settings.
+    await c.settings.updateOne(
+      { _id: "site" },
+      { $set: { address: DEFAULT_ADDRESS, mapsUrl: DEFAULT_MAPS_URL, updatedAt: new Date().toISOString() } }
+    );
+  });
+
+  await runOnce(c, "migration:remove-sample-content-v1", async () => {
+    // The first deploy seeded sample photos (bundled under /images, now removed)
+    // and a sample menu. Drop the sample photos and any sample menu item an
+    // admin never edited; everything uploaded or edited in the admin stays.
+    const bundled = { $regex: "^/images/" };
+    await Promise.all([
+      c.heroImages.deleteMany({ imageUrl: bundled }),
+      c.favourites.deleteMany({ imageUrl: bundled }),
+      c.storyImages.deleteMany({ imageUrl: bundled }),
+      c.menuItems.deleteMany({ _id: { $regex: SAMPLE_MENU_ID }, updatedAt: SEED_DATE }),
+    ]);
+    await c.menuItems.updateMany(
+      { imageUrl: bundled },
+      { $set: { imageUrl: "", imageFileId: null } }
+    );
+  });
 }
+
+/** Ids and timestamp the original sample menu was seeded with. */
+const SAMPLE_MENU_ID = "^10000000-0000-4000-8000-0000000000\\d{2}$";
+const SEED_DATE = "2026-09-29T00:00:00.000Z";
 
 async function runOnce(c: Collections, id: string, run: () => Promise<void>) {
   const marker = await c.appConfig.updateOne(
@@ -206,12 +235,7 @@ async function db() {
     );
     if (!marker.upsertedCount) return;
 
-    const seed = createDefaultContent();
-    await Promise.all([
-      c.settings.insertOne({ _id: "site", ...seed.settings }),
-      c.heroImages.insertMany(seed.heroImages.map((img) => toHeroDoc(img))),
-      c.menuItems.insertMany(seed.menuItems.map(toMenuDoc)),
-    ]);
+    await c.settings.insertOne({ _id: "site", ...createDefaultContent().settings });
   })()
     .then(() => migrate(c))
     .catch((error) => {
