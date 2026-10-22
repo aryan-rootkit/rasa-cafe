@@ -179,6 +179,10 @@ async function migrate(c: Collections) {
     await c.menuCategories.insertMany(categories.map(({ id, ...cat }) => ({ _id: id, ...cat })));
   });
 
+  // Vercel previews may share the production database; these change live
+  // content, so they wait for the production deploy.
+  if (process.env.VERCEL_ENV === "preview") return;
+
   await runOnce(c, "migration:location-2026-10", async () => {
     // The café's address and Maps listing changed; both stay editable in Website Settings.
     await c.settings.updateOne(
