@@ -1,4 +1,4 @@
-/** Brand copy. Contact details, hero images and the menu live in the admin-managed content store. */
+/** Brand copy. Contact details (including the Maps link), photos and the menu live in the admin-managed content store. */
 export const brand = {
   name: "RASA",
   tagline: "Food. Coffee. Moments.",
@@ -7,9 +7,6 @@ export const brand = {
   description:
     "RASA is a café built around good food, thoughtful coffee and the simple pleasure of spending time together.",
 };
-
-/** RASA's official Google Maps listing, opened by the "Get Directions" buttons. */
-export const directionsUrl = "https://share.google/0cMIZgnrtY0MILf4u";
 
 export const formatPrice = (price: number) => `₹${price}`;
 

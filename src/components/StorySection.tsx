@@ -1,30 +1,21 @@
 "use client";
 
-import Image from "next/image";
 import Reveal from "@/components/Reveal";
 import StoryGallery, { type StoryGalleryImage } from "@/components/StoryGallery";
+import { cn } from "@/lib/cn";
 
 export default function StorySection({ images }: { images: StoryGalleryImage[] }) {
   return (
     <section id="story" className="relative">
-      {images.length > 0 ? (
-        <StoryGallery images={images} />
-      ) : (
-        // Until the admin uploads gallery photos, keep the original café photo.
-        <div className="relative h-[55vh] min-h-[360px] w-full overflow-hidden md:h-[70vh]">
-          <Image
-            src="/images/story/cafe.jpg"
-            alt="Inside RASA café"
-            fill
-            sizes="100vw"
-            className="object-cover"
-            priority={false}
-          />
-          <div className="absolute inset-0 bg-ink/25" />
-        </div>
-      )}
+      {/* With no gallery photos yet, the section is just the story text. */}
+      {images.length > 0 && <StoryGallery images={images} />}
 
-      <div className="section-pad bg-cream py-14 md:py-20">
+      <div
+        className={cn(
+          "section-pad bg-cream py-14 md:py-20",
+          images.length === 0 && "border-t border-line"
+        )}
+      >
         <div className="mx-auto max-w-7xl">
           <Reveal>
             <h2 className="max-w-2xl font-serif text-[clamp(2.5rem,6vw,4.5rem)] leading-[1.05] tracking-tight text-ink">

@@ -3,7 +3,6 @@
 import { ArrowUpRight, Mail, Phone } from "lucide-react";
 import InstagramIcon from "@/components/InstagramIcon";
 import Reveal from "@/components/Reveal";
-import { directionsUrl } from "@/data/site";
 import { formatPhone, instagramHandle, telHref } from "@/lib/contact";
 import type { WebsiteSettings } from "@/lib/content/schema";
 
@@ -12,7 +11,7 @@ const linkClass =
 const labelClass = "text-[11px] tracking-[0.22em] text-muted uppercase";
 
 export default function VisitSection({ settings }: { settings: WebsiteSettings }) {
-  const { address, openingDays, openingHours, phone1, phone2, email, instagramUrl } = settings;
+  const { address, mapsUrl, openingDays, openingHours, phone1, phone2, email, instagramUrl } = settings;
   const phones = [phone1, phone2].filter(Boolean);
   const mapSrc = `https://www.google.com/maps?q=${encodeURIComponent(address)}&output=embed`;
 
@@ -69,7 +68,7 @@ export default function VisitSection({ settings }: { settings: WebsiteSettings }
           </dl>
 
           <a
-            href={directionsUrl}
+            href={mapsUrl}
             target="_blank"
             rel="noopener noreferrer"
             className="group mt-10 inline-flex min-h-11 items-center gap-1.5 self-start border border-ink bg-ink px-6 py-3 text-[12px] tracking-[0.16em] text-cream uppercase transition-colors hover:bg-ink-soft"

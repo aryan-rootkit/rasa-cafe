@@ -5,14 +5,15 @@ import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
 import { ArrowUpRight, Menu, X } from "lucide-react";
 import InstagramIcon from "@/components/InstagramIcon";
-import { brand, directionsUrl, navLinks } from "@/data/site";
+import { brand, navLinks } from "@/data/site";
 import { cn } from "@/lib/cn";
 
 type NavbarProps = {
   instagramUrl: string;
+  mapsUrl: string;
 };
 
-export default function Navbar({ instagramUrl }: NavbarProps) {
+export default function Navbar({ instagramUrl, mapsUrl }: NavbarProps) {
   const [scrolled, setScrolled] = useState(false);
   const [open, setOpen] = useState(false);
 
@@ -71,7 +72,7 @@ export default function Navbar({ instagramUrl }: NavbarProps) {
 
             <div className="flex items-center gap-1">
               <a
-                href={directionsUrl}
+                href={mapsUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="group hidden min-h-10 items-center gap-1.5 border border-ink/15 bg-ink px-5 py-2.5 text-[12px] tracking-[0.16em] text-cream uppercase transition-colors hover:bg-ink-soft md:inline-flex"
@@ -130,7 +131,7 @@ export default function Navbar({ instagramUrl }: NavbarProps) {
                 className="mt-4 flex flex-wrap items-center gap-6"
               >
                 <a
-                  href={directionsUrl}
+                  href={mapsUrl}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex min-h-11 items-center gap-1.5 border border-ink bg-ink px-6 py-3 text-[12px] tracking-[0.16em] text-cream uppercase"

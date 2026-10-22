@@ -9,7 +9,7 @@ import { getContent } from "@/lib/content/store";
 
 export const metadata: Metadata = {
   title: "Menu — RASA",
-  description: "Coffee, breakfast, small plates, mains, desserts and more at RASA.",
+  description: "Everything we’re cooking and pouring right now at RASA.",
 };
 
 export default async function MenuPage() {
@@ -22,7 +22,7 @@ export default async function MenuPage() {
 
   return (
     <main className="grain relative overflow-x-clip">
-      <Navbar instagramUrl={settings.instagramUrl} />
+      <Navbar instagramUrl={settings.instagramUrl} mapsUrl={settings.mapsUrl} />
       <section className="section-pad pt-36 pb-24 md:pt-44 md:pb-36">
         <div className="mx-auto max-w-7xl">
           <Link
@@ -41,6 +41,13 @@ export default async function MenuPage() {
               inclusive of the good mood.
             </p>
           </Reveal>
+
+          {categories.length === 0 && (
+            <p className="mt-16 max-w-md border-t border-line pt-10 text-[15px] leading-relaxed text-ink-soft md:mt-24">
+              Our menu is being plated up. Check back soon, or come by and see
+              what&apos;s cooking.
+            </p>
+          )}
 
           <div className="mt-16 space-y-16 md:mt-24 md:space-y-24">
             {categories.map((cat) => (
