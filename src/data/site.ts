@@ -2,6 +2,7 @@
 export const brand = {
   name: "RASA",
   tagline: "Food. Coffee. Moments.",
+  association: "Associated with Creamy Nuts",
   heroLine:
     "Made for slow mornings, quick conversations and everything in between.",
   description:

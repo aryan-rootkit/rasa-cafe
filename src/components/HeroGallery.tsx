@@ -180,10 +180,36 @@ export default function HeroGallery({ images }: { images: HeroGalleryImage[] }) 
           transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
           className="mb-10 max-w-xl md:mb-14"
         >
-          <h1 className="font-serif text-5xl tracking-[0.18em] text-ink md:text-6xl">
-            {brand.name}
-          </h1>
-          <p className="mt-3 text-sm tracking-[0.22em] text-muted uppercase md:text-[13px]">
+          <h1 className="sr-only">{brand.name}</h1>
+          <div className="inline-flex flex-col items-stretch">
+            <div className="flex items-center justify-center gap-5 md:gap-7">
+              <Image
+                src="/brand/creamy-nuts-logo.svg"
+                alt="Creamy Nuts"
+                width={474}
+                height={490}
+                priority
+                unoptimized
+                className="h-20 w-auto md:h-28"
+              />
+              <span aria-hidden className="h-16 w-px bg-line-strong md:h-24" />
+              <Image
+                src="/brand/rasa-cafe-logo.svg"
+                alt="Rasa Café — a little taste of home"
+                width={674}
+                height={674}
+                priority
+                unoptimized
+                className="h-24 w-auto md:h-32"
+              />
+            </div>
+            <p className="mt-3 flex items-center gap-3 text-[13px] tracking-[0.04em] whitespace-nowrap text-ink-soft md:text-sm">
+              <span aria-hidden className="h-px min-w-5 flex-1 bg-line-strong" />
+              {brand.association}
+              <span aria-hidden className="h-px min-w-5 flex-1 bg-line-strong" />
+            </p>
+          </div>
+          <p className="mt-6 text-sm tracking-[0.22em] text-muted uppercase md:text-[13px]">
             {brand.tagline}
           </p>
           <p className="mt-5 max-w-md text-[15px] leading-relaxed text-ink-soft md:text-base">
