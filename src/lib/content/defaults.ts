@@ -11,7 +11,7 @@ const SEED_DATE = "2026-09-29T00:00:00.000Z";
 /** RASA's Google Maps listing; admins can change it in Website Settings. */
 export const DEFAULT_MAPS_URL = "https://maps.app.goo.gl/DQXs4t35YmWhUxjX6";
 export const DEFAULT_ADDRESS =
-  "Shop BG-32, Ground Floor, Behind Punjab National Bank, Destination Center, Magarpatta City, Pune - 411013";
+  "Shop Number BG 32, Destination Centre, behind Punjab National Bank, Magarpatta City, Hadapsar, Pune, Maharashtra 411013";
 
 const menuCategories: MenuCategory[] = DEFAULT_MENU_CATEGORIES.map(({ id, label }, position) => ({
   id,
